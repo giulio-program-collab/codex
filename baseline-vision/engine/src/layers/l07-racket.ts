@@ -1,6 +1,7 @@
 import {
   type Vec3,
   add3,
+  butterworthLowPass,
   clamp,
   dist2,
   dot3,
@@ -60,6 +61,13 @@ export interface RacketResult {
  * head is simply somewhere else, so no honest figure exists.
  */
 export const MIN_RACKET_SPEED_HZ = 120;
+
+/**
+ * Low-pass cutoff applied to the racket-head path before differentiating it.
+ * Above the genuine bandwidth of a serve's racket motion and far below the
+ * sampling rate, so it removes reconstruction noise without clipping the peak.
+ */
+export const RACKET_PATH_CUTOFF_HZ = 15;
 
 export interface RacketOptions {
   camera: PinholeCamera;
@@ -187,29 +195,67 @@ export function trackRacket(frames: FrameObservation[], opts: RacketOptions): Ra
   let peakHeadSpeedSd: number | null = null;
 
   if (speedResolvable) {
-    const speeds: number[] = [];
+    // Differentiate a *filtered* path, never the raw one.
+    //
+    // The racket head is reconstructed to within a few centimetres per frame.
+    // At 240 fps, four centimetres of independent position error becomes about
+    // fourteen metres per second of speed noise on a single sample — half the
+    // true peak. Taking the maximum of that series then adds the maximum's own
+    // upward bias on top, and the result overstated peak racket-head speed by
+    // around 27 km/h consistently. Low-passing the path first removes both:
+    // the genuine speed profile of a serve is well inside 15 Hz, while the
+    // error is white.
+    const sampleHz = 1 / opts.dtScene;
+    const axis = (pick: (v: Vec3) => number): number[] => {
+      // Gaps are bridged by interpolation, not by holding the last value.
+      // A hold-last series has a step at the end of every gap, and a low-pass
+      // filter turns a step into a spike — which is then read as a peak speed
+      // several times the true one. The whole point of filtering is defeated by
+      // the way the gaps are filled.
+      const known: Array<number | null> = out.map((f) => (f.head ? pick(f.head) : null));
+      const filled = new Array<number>(known.length);
+      let previousIndex = -1;
+      for (let i = 0; i < known.length; i++) {
+        if (known[i] === null) continue;
+        if (previousIndex === -1) {
+          for (let k = 0; k <= i; k++) filled[k] = known[i] as number;
+        } else {
+          const span = i - previousIndex;
+          for (let k = 1; k <= span; k++) {
+            filled[previousIndex + k] =
+              (known[previousIndex] as number) +
+              (((known[i] as number) - (known[previousIndex] as number)) * k) / span;
+          }
+        }
+        previousIndex = i;
+      }
+      if (previousIndex === -1) return new Array(known.length).fill(0);
+      for (let k = previousIndex; k < filled.length; k++) filled[k] = known[previousIndex] as number;
+      return butterworthLowPass(filled, RACKET_PATH_CUTOFF_HZ, sampleHz);
+    };
+    const xs = axis((v) => v.x);
+    const ys = axis((v) => v.y);
+    const zs = axis((v) => v.z);
+
     for (let i = 1; i < out.length; i++) {
-      const a = out[i - 1].head;
-      const b = out[i].head;
-      speeds.push(a && b ? norm3(sub3(b, a)) / opts.dtScene : NaN);
+      if (!out[i].head || !out[i - 1].head) continue;
+      out[i].headSpeedMs =
+        Math.hypot(xs[i] - xs[i - 1], ys[i] - ys[i - 1], zs[i] - zs[i - 1]) / opts.dtScene;
     }
-    const finite = speeds.map((v) => (Number.isFinite(v) ? v : 0));
-    const sm = smooth(finite, 1);
-    for (let i = 1; i < out.length; i++) {
-      out[i].headSpeedMs = Number.isFinite(speeds[i - 1]) ? sm[i - 1] : null;
-    }
+
     const valid = out
       .filter((f) => f.headSpeedMs !== null && f.confidence > 0.3)
       .map((f) => f.headSpeedMs as number);
     if (valid.length >= 5) {
       peakHeadSpeedMs = Math.max(...valid);
-      // Uncertainty: chord-vs-arc shortening plus the propagated position error
-      // of the two endpoints.
+      // Chord-versus-arc shortening, the residual noise that survives the
+      // filter, and the reconstruction's own scale error.
       const chordError = 0.06 * (120 / opts.effectiveHz);
-      const posSigma = 0.05;
+      const residualPositionSigma = 0.04 * Math.sqrt(RACKET_PATH_CUTOFF_HZ / sampleHz);
       peakHeadSpeedSd = Math.hypot(
         peakHeadSpeedMs * chordError,
-        (posSigma * Math.SQRT2) / opts.dtScene / 3,
+        (residualPositionSigma * Math.SQRT2) / opts.dtScene,
+        peakHeadSpeedMs * 0.08,
       );
     }
   } else {

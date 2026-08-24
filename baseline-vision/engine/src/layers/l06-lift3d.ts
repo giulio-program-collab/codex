@@ -79,6 +79,12 @@ export interface Lift3DResult {
   mirrorConfidence: number;
   /** Confidence that the target ("toward the net") direction was recovered. */
   targetDirConfidence: number;
+  /**
+   * Relative uncertainty of the reconstruction's overall scale, common to every
+   * joint. Applies to absolute lengths; cancels in angles and in ratios taken
+   * against the player's own dimensions.
+   */
+  scaleRelSd: number;
   /** Mean absolute bone-length residual in metres, over all frames and bones. */
   boneResidualM: number;
   /** Fraction of bone solves whose discriminant was negative (geometrically impossible). */
@@ -174,6 +180,15 @@ export const DEPTH_CUTOFF_HZ = 14;
  * of a serve.
  */
 export const GROUND_CONTACT_BAND_M = 0.07;
+
+/**
+ * Residual shape uncertainty of the root joint, as a fraction of body height,
+ * when no depth prior pins it down. The root's absolute distance error is
+ * common-mode and is carried as `scaleRelSd`; what remains here is the part
+ * that genuinely distorts the reconstruction, through the bone-length
+ * discriminant.
+ */
+export const ROOT_SHAPE_SIGMA_FRACTION = 0.02;
 
 /**
  * How much of a joint's depth uncertainty survives the temporal filter.
@@ -557,6 +572,7 @@ function finishLift(
     groundZ,
     verticalConfidence: upConfidence,
     mirrorConfidence,
+    scaleRelSd: opts.subjectDepthRelSd,
     targetDirConfidence: forwardConfidence,
     boneResidualM,
     impossibleFraction,
@@ -751,7 +767,23 @@ function propagateDepths(input: PropagationInput): PropagationOutput {
     const sigmaDepth: Partial<Record<Joint, number>> = {};
     if (r.pelvis) {
       tAlongRay.pelvis = rootFiltered[i] / Math.max(1e-6, dot3(r.pelvis, cam.forward));
-      sigmaDepth.pelvis = rootFiltered[i] * opts.subjectDepthRelSd;
+      // The root's *shape* uncertainty, not its distance uncertainty.
+      //
+      // How far the player is from the camera is uncertain by several percent,
+      // which at eight metres is more than half a metre. Writing that number
+      // into the root joint's covariance makes every Monte-Carlo replica move
+      // the pelvis half a metre in depth relative to the rest of the body,
+      // which is not what the error does: it moves the *whole* skeleton
+      // together, changing the scale and leaving the shape almost untouched.
+      // Carried per joint it inflated every joint angle's uncertainty by a
+      // factor of three to ten — enough to make a 240 fps calibrated capture
+      // report that nothing could be distinguished from anything.
+      //
+      // The common-mode part is carried separately as `scaleRelSd` and applied
+      // by the feature layer to absolute lengths only, which is the only place
+      // it actually acts.
+      sigmaDepth.pelvis =
+        opts.depthPrior?.sigmaM(i, "pelvis") ?? ROOT_SHAPE_SIGMA_FRACTION * opts.anthro.heightM;
     }
 
     for (const edge of trees[i]) {

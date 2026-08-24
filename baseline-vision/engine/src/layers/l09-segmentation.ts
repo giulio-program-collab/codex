@@ -78,6 +78,17 @@ export interface SegmentationResult {
   /** Fractional frame index of contact. */
   contactFrame: number | null;
   contactConfidence: number;
+  /**
+   * 1-sigma uncertainty of the contact instant, in frames.
+   *
+   * Every metric evaluated *at* contact inherits this. On a serve the racket
+   * head moves at 30-40 m/s, so a single frame of contact error at 240 fps is
+   * 13 cm of contact height — which is larger than the spread the reference
+   * distributions are trying to resolve. A contact-referenced measurement whose
+   * uncertainty ignores this is understating its own error by an order of
+   * magnitude.
+   */
+  contactFrameSd: number;
   /** Which cues agreed on the contact instant. */
   contactCues: Array<{ id: string; frame: number | null; weight: number }>;
   /** Named events other layers depend on. */
@@ -271,6 +282,9 @@ export function segment(poses: Pose3D[], opts: SegmentationOptions): Segmentatio
   const usable = cues.filter((c) => c.frame !== null && c.weight > 0.15);
   let contactFrame: number | null = null;
   let contactConfidence = 0;
+  // Half a frame is the floor: even a perfectly agreeing set of cues cannot
+  // localise contact better than the sampling interval allows.
+  let contactFrameSd = 0.5;
 
   if (usable.length > 0) {
     // Consensus with outlier rejection, not a weighted mean.
@@ -283,6 +297,7 @@ export function segment(poses: Pose3D[], opts: SegmentationOptions): Segmentatio
     // timing measurement in the report.
     const centre = weightedMedian(usable.map((c) => ({ x: c.frame as number, w: c.weight })));
     const spread = median(usable.map((c) => Math.abs((c.frame as number) - centre))) ?? 0;
+    contactFrameSd = Math.max(0.5, spread * 1.4826);
     const tolerance = Math.max(3, 2.5 * spread);
     const agreeing = usable.filter((c) => Math.abs((c.frame as number) - centre) <= tolerance);
     const dropped = usable.filter((c) => Math.abs((c.frame as number) - centre) > tolerance);
@@ -393,6 +408,7 @@ export function segment(poses: Pose3D[], opts: SegmentationOptions): Segmentatio
       phases: [],
       contactFrame: null,
       contactConfidence: 0,
+      contactFrameSd,
       contactCues: cues,
       events,
       signals: { kneeAngle, pelvisZ, racketZ, wristZ, elbowAngle },
@@ -454,6 +470,7 @@ export function segment(poses: Pose3D[], opts: SegmentationOptions): Segmentatio
     phases,
     contactFrame: cf,
     contactConfidence,
+    contactFrameSd,
     contactCues: cues,
     events,
     signals: { kneeAngle, pelvisZ, racketZ, wristZ, elbowAngle },

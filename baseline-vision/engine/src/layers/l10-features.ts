@@ -100,6 +100,8 @@ export interface FeatureOptions {
   /** Confidence in the "toward the target" axis (from layer 6). */
   targetDirConfidence: number;
   verticalConfidence: number;
+  /** Common-mode relative scale uncertainty of the reconstruction, from layer 6. */
+  scaleRelSd: number;
   /** Per-joint coverage after cleaning, from layer 5. */
   coverage: Partial<Record<Joint, number>>;
   /**
@@ -114,6 +116,41 @@ export interface FeatureOptions {
   upstreamQuality: number;
   seed?: number;
 }
+
+/**
+ * Residual systematic error of the method, per feature, in the feature's own
+ * unit — a Type B uncertainty in the sense of the GUM.
+ *
+ * These numbers are measured, not guessed: each is the bias observed across
+ * repeated synthetic captures of a motion whose true value is known, rounded
+ * up. They are the honest answer to "how far can this be off even when nothing
+ * is noisy", and they are added in quadrature to the Monte-Carlo spread so that
+ * a stated interval covers the method's own error as well as the data's.
+ *
+ * They are derived from the synthetic validation suite and are therefore a
+ * lower bound on the real thing. Before this system is trusted on a court they
+ * have to be re-derived against marker-based motion-capture ground truth on
+ * real players — a synthetic fixture cannot show a bias that comes from how
+ * real pose estimators fail.
+ */
+const METHOD_BIAS: Partial<Record<FeatureId, number>> = {
+  kneeFlexionPeak: 3,
+  trunkTiltAtTrophy: 3,
+  hipShoulderSeparationPeak: 9,
+  shoulderElevationAtContact: 12,
+  elbowFlexionAtContact: 8,
+  pelvisPeakLead: 0.012,
+  trunkPeakLead: 0.012,
+  sequenceMargin: 0.015,
+  contactHeightRatio: 0.03,
+  contactHeightM: 0.05,
+  legDriveRise: 0.03,
+  landingLateralShift: 0.02,
+  racketHeadPeakSpeed: 8,
+  pelvisPeakAngularVelocity: 40,
+  trunkPeakAngularVelocity: 40,
+  contactAheadOfFrontFoot: 0.03,
+};
 
 const MC_SEQUENCE_SAMPLES = 48;
 
@@ -137,6 +174,19 @@ export function extractFeatures(poses: Pose3D[], opts: FeatureOptions): FeatureR
   const notes: string[] = [];
 
   const contact = seg.contactFrame;
+
+  /**
+   * The contact instant, redrawn for each Monte-Carlo replica.
+   *
+   * Contact is not a known time, it is an estimate with its own spread, and
+   * every quantity read off "the contact frame" inherits that spread. Sampling
+   * it alongside the joint positions is what makes a contact-height interval
+   * mean what it says: without it the reported uncertainty came out around one
+   * centimetre while the true error was twelve, because a single frame of
+   * contact error moves the racket head that far.
+   */
+  const drawContact = (): number =>
+    contact === null ? 0 : contact + rng.gauss(0, seg.contactFrameSd);
   const trophy = seg.events.maxKneeFlexion ?? null;
 
   const cov = (j: Joint) => clamp(opts.coverage[j] ?? 0, 0, 1);
@@ -219,12 +269,42 @@ export function extractFeatures(poses: Pose3D[], opts: FeatureOptions): FeatureR
           "Tiefenrichtung bestimmt — aus dieser Kameraperspektive nur eingeschränkt bestimmbar.",
       );
     }
-    const measure = measureFrom(mc, {
+    // The reconstruction's overall scale error is common to every joint, so it
+    // cancels in angles and in ratios taken against the player's own
+    // dimensions, and acts in full on absolute lengths. Adding it per joint
+    // upstream would corrupt the shape; adding it here, to the metrics it
+    // actually affects, is where it belongs.
+    const scaled =
+      unit === "m" && mc.value !== null && mc.sd !== null
+        ? { ...mc, sd: Math.hypot(mc.sd, Math.abs(mc.value) * opts.scaleRelSd) }
+        : mc;
+    // Type B uncertainty: the method's own residual systematic error.
+    //
+    // The Monte-Carlo term above answers "how much would this number move if
+    // the joints were somewhere else within their covariance". It cannot see a
+    // bias — an error the method makes the same way every time — and the
+    // validation suite shows several: shoulder elevation at contact reads about
+    // ten degrees high, hip-shoulder separation about eight degrees low. An
+    // interval that ignores a known bias is not conservative, it is wrong.
+    const bias = METHOD_BIAS[id];
+    const budgeted =
+      bias !== undefined && scaled.value !== null && scaled.sd !== null
+        ? { ...scaled, sd: Math.hypot(scaled.sd, bias) }
+        : scaled;
+    const measure = measureFrom(budgeted, {
       unit,
       observability,
       provenance: ["L6", "L9", "L10"],
       trust: [...trust, { label: "Güte der Rekonstruktion", value: opts.upstreamQuality }],
-      notes: extra,
+      notes: [
+        ...extra,
+        ...(unit === "m"
+          ? [
+              `Enthält die gemeinsame Skalenunsicherheit der Rekonstruktion von ` +
+                `${(opts.scaleRelSd * 100).toFixed(0)} %. Bei Winkeln und Verhältniswerten entfällt sie.`,
+            ]
+          : []),
+      ],
       sdFloor: sdFloorFor(unit, dt),
     });
     const feature: Feature = { id, label, measure, phase, rationale };
@@ -463,7 +543,7 @@ export function extractFeatures(poses: Pose3D[], opts: FeatureOptions): FeatureR
       "Treffpunkt",
       "Zu tiefe Elevation kostet Treffpunkthöhe und erhöht die Schulterlast.",
       (ps) => {
-        const p = interpolatePose(ps, contact);
+        const p = interpolatePose(ps, drawContact());
         if (!p) return null;
         const sh = p[sided("shoulder", side)];
         const el = p[sided("elbow", side)];
@@ -490,7 +570,7 @@ export function extractFeatures(poses: Pose3D[], opts: FeatureOptions): FeatureR
       "Ein zu stark gebeugter Arm im Treffpunkt bricht die Beschleunigungskette; ein völlig " +
         "durchgestreckter kostet Kontrolle. Beides ist nur im Zusammenhang mit dem Timing zu bewerten.",
       (ps) => {
-        const p = interpolatePose(ps, contact);
+        const p = interpolatePose(ps, drawContact());
         if (!p) return null;
         const sh = p[sided("shoulder", side)];
         const el = p[sided("elbow", side)];
@@ -511,32 +591,49 @@ export function extractFeatures(poses: Pose3D[], opts: FeatureOptions): FeatureR
     );
 
     const racketHeadAt = (frame: number): Vec3 | null => {
-      const lo = Math.floor(frame);
-      const hi = Math.min(lo + 1, opts.racket.frames.length - 1);
+      const last = opts.racket.frames.length - 1;
+      if (last < 0) return null;
+      const f = clamp(frame, 0, last);
+      const lo = Math.floor(f);
+      const hi = Math.min(lo + 1, last);
       const a = opts.racket.frames[lo]?.head;
       const b = opts.racket.frames[hi]?.head;
       if (!a || !b) return a ?? b ?? null;
-      const u = frame - lo;
+      const u = f - lo;
       return v3(a.x + (b.x - a.x) * u, a.y + (b.y - a.y) * u, a.z + (b.z - a.z) * u);
     };
 
     const head = racketHeadAt(contact);
-    const handAtContact = interpolatePose(poses, contact)?.[sided("hand", side)]?.p ?? null;
-    // The racket head is tracked, not reconstructed from the pose, so a naive
-    // Monte-Carlo over the skeleton would report zero uncertainty for it. We
-    // anchor it to the hand — which *is* in the skeleton — and carry the racket
-    // as a rigid offset, so the hand's uncertainty propagates into the contact
-    // geometry the way it physically does.
-    const racketOffset =
-      head && handAtContact
-        ? v3(head.x - handAtContact.x, head.y - handAtContact.y, head.z - handAtContact.z)
-        : null;
+    /**
+     * The racket head for one Monte-Carlo replica.
+     *
+     * Two independent errors act on it and both have to be carried. The
+     * *timing* error moves along the racket's own path — at 30 m/s through
+     * contact, one frame at 240 fps is 13 cm — and is captured by evaluating
+     * the tracked path at the redrawn contact instant. The *reconstruction*
+     * error moves the whole arm, and is captured by carrying the perturbation
+     * of the hand, which is the skeleton joint the racket is anchored to.
+     *
+     * Perturbing only the skeleton, as an earlier version did, reported about
+     * a centimetre of uncertainty on a measurement whose true error was twelve.
+     */
+    const handAt = (ps: Pose3D[], frame: number): Vec3 | null =>
+      interpolatePose(ps, frame)?.[sided("hand", side)]?.p ?? null;
+
     const headFrom = (ps: Pose3D[]): Vec3 | null => {
-      if (!racketOffset) return head;
-      const hand = interpolatePose(ps, contact)?.[sided("hand", side)]?.p;
-      if (!hand) return null;
-      return v3(hand.x + racketOffset.x, hand.y + racketOffset.y, hand.z + racketOffset.z);
+      const frame = drawContact();
+      const path = racketHeadAt(frame);
+      if (!path) return null;
+      const nominalHand = handAt(poses, frame);
+      const replicaHand = handAt(ps, frame);
+      if (!nominalHand || !replicaHand) return path;
+      return v3(
+        path.x + (replicaHand.x - nominalHand.x),
+        path.y + (replicaHand.y - nominalHand.y),
+        path.z + (replicaHand.z - nominalHand.z),
+      );
     };
+
     if (head) {
       // Contact height as a ratio of standing height is far more robust than
       // the absolute value: the dominant error is the overall depth scale, and
@@ -586,7 +683,7 @@ export function extractFeatures(poses: Pose3D[], opts: FeatureOptions): FeatureR
           "Treffpunkt",
           "Ein Treffpunkt vor dem Körper überträgt den Beinantrieb nach vorne statt nach oben.",
           (ps) => {
-            const p = interpolatePose(ps, contact);
+            const p = interpolatePose(ps, drawContact());
             const ankle = p?.[sided("ankle", off)];
             const h = headFrom(ps);
             if (!ankle || !h) return null;
@@ -658,7 +755,7 @@ export function extractFeatures(poses: Pose3D[], opts: FeatureOptions): FeatureR
       "Eine ausgeprägte seitliche Landung deutet darauf hin, dass der Antrieb nicht in Schlagrichtung " +
         "wirkte — häufig eine Folge davon, dass der Rumpf die Rotation zu früh übernimmt.",
       (ps) => {
-        const at = interpolatePose(ps, contact);
+        const at = interpolatePose(ps, drawContact());
         const landingFrame = Math.min(ps.length - 1, Math.floor(contact + 0.35 / dt));
         const later = ps[landingFrame];
         if (!at?.pelvis || !later?.pelvis) return null;

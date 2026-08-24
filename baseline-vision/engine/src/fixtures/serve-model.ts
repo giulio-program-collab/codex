@@ -77,8 +77,6 @@ export interface ServeParams {
   /** Shoulder elevation at contact, degrees (180 = arm straight above the trunk axis). */
   shoulderElevAtContactDeg: number;
 
-  /** Vertical rise of the pelvis from the loaded position to contact, metres. */
-  legDriveRiseM: number;
   /** Peak jump height (ankle clearance) around contact, metres. */
   jumpHeightM: number;
 
@@ -108,7 +106,6 @@ export const SERVE_PRESETS: Record<string, ServeParams> = {
     elbowFlexAtContactDeg: 14,
     elbowFlexAtDropDeg: 118,
     shoulderElevAtContactDeg: 162,
-    legDriveRiseM: 0.28,
     jumpHeightM: 0.24,
   },
   highPerformance: {
@@ -128,7 +125,6 @@ export const SERVE_PRESETS: Record<string, ServeParams> = {
     elbowFlexAtContactDeg: 22,
     elbowFlexAtDropDeg: 110,
     shoulderElevAtContactDeg: 152,
-    legDriveRiseM: 0.22,
     jumpHeightM: 0.16,
   },
   developing: {
@@ -151,7 +147,6 @@ export const SERVE_PRESETS: Record<string, ServeParams> = {
     elbowFlexAtContactDeg: 42,
     elbowFlexAtDropDeg: 84,
     shoulderElevAtContactDeg: 133,
-    legDriveRiseM: 0.1,
     jumpHeightM: 0.04,
   },
 };
@@ -350,19 +345,54 @@ export function serveAt(
     params.kneeFlexPeakDeg * bell(rel, params.kneeFlexPeakLeadS, 0.16) +
     6 * bell(rel, 0.28, 0.12); // soft landing flexion after contact
 
-  // --- Vertical: squat down, drive up, airborne around contact.
+  // --- Vertical -----------------------------------------------------
+  // The pelvis height is *derived* from the commanded knee flexion and the
+  // stance, not set independently.
+  //
+  // An earlier version computed it as a "squat drop" of
+  // legLen * (1 - cos(flexion / 2)), which silently assumes the ankle is
+  // directly beneath the hip. In a serve stance it is not: the feet are set
+  // apart along the baseline and one is well in front of the other, so the leg
+  // is already at an angle before any knee bend. The consequence was that a
+  // preset asking for 28 degrees of knee flexion produced a leg that actually
+  // bent by five, and every test that referenced the parameter was measuring
+  // something the fixture had never generated.
+  //
+  // Solving the leg triangle instead makes the commanded angle the angle that
+  // appears in the geometry, which is what a ground truth has to mean.
   const airborne = Math.max(0, params.jumpHeightM * bell(rel, 0.02, 0.16));
-  const legLen = a.thighM + a.shankM;
-  const squatDrop = legLen * (1 - Math.cos(rad(kneeFlex / 2)));
-  const drive = params.legDriveRiseM * clamp(sigmoid((rel + 0.06) / 0.05), 0, 1) * bell(rel, 0.0, 0.5);
-  const pelvisZ = a.hipHeightM - squatDrop + drive * 0.35 + airborne;
 
   // --- Trunk tilt: away from the target during loading, upright at contact.
   const trunkTilt = params.trunkTiltDeg * bell(rel, -0.3, 0.22) + 6 * bell(rel, 0, 0.18);
 
+  // --- Stance ---------------------------------------------------------
+  // Serve stance: the front foot (left, for a right-hander) is closer to the
+  // net and angled toward it; the back foot sits behind, roughly parallel to
+  // the baseline. Both point in the direction the chest faces at the trophy
+  // position, which is what makes the reconstruction's chirality test work.
+  const groundZ = airborne;
+  const stanceHalf = a.hipWidthM * 0.9;
+  const ankleFront0 = v3(0.10 * mirror, 0.14, groundZ + a.ankleHeightM);
+  const ankleBack0 = v3(-0.10 * mirror, -0.34 - stanceHalf * 0.1, groundZ + a.ankleHeightM);
+
+  // Pelvis height from the leg triangle: for a knee flexion of `kneeFlex` the
+  // hip must sit exactly this far from the ankle.
+  const thigh = a.thighM;
+  const shank = a.shankM;
+  const hipToAnkle = Math.sqrt(
+    Math.max(1e-6, thigh * thigh + shank * shank + 2 * thigh * shank * Math.cos(rad(kneeFlex))),
+  );
+  const pelvisRight0 = unit3(v3(Math.cos(rad(pelvisYaw)), Math.sin(rad(pelvisYaw)), 0));
+  const frontSide = params.hand === "right" ? -1 : 1; // left hip for a right-hander
+  const hipFrontOffset = scale3(pelvisRight0, (frontSide * mirror * a.hipWidthM) / 2);
+  const dxHip = hipFrontOffset.x - ankleFront0.x;
+  const dyHip = hipFrontOffset.y - ankleFront0.y;
+  const vertical = Math.sqrt(Math.max(0.04, hipToAnkle * hipToAnkle - dxHip * dxHip - dyHip * dyHip));
+  const pelvisZ = ankleFront0.z + vertical;
+
   // --- Frames -----------------------------------------------------------
   // Pelvis frame: yaw about world z, hip line = "right" axis.
-  const pelvisRight = unit3(v3(Math.cos(rad(pelvisYaw)), Math.sin(rad(pelvisYaw)), 0));
+  const pelvisRight = pelvisRight0;
   const pelvisUp = v3(0, 0, 1);
   const pelvis = v3(0, 0, pelvisZ);
 
@@ -449,27 +479,18 @@ export function serveAt(
   const offHand = add3(offWrist, scale3(offDir, a.handM));
 
   // --- Legs -------------------------------------------------------------
-  const groundZ = airborne;
-  // Serve stance: the front foot (left, for a right-hander) is closer to the
-  // net and angled toward it; the back foot sits behind, roughly parallel to
-  // the baseline. Both point in the direction the chest faces at the trophy
-  // position, which is what makes the reconstruction's chirality test work.
-  const stanceHalf = a.hipWidthM * 0.9;
-  const ankleFront = v3(0.10 * mirror, 0.14, groundZ + a.ankleHeightM);
-  const ankleBack = v3(-0.10 * mirror, -0.34 - stanceHalf * 0.1, groundZ + a.ankleHeightM);
-
-  let ankleR = params.hand === "right" ? ankleBack : ankleFront;
-  let ankleL = params.hand === "right" ? ankleFront : ankleBack;
+  let ankleR = params.hand === "right" ? ankleBack0 : ankleFront0;
+  let ankleL = params.hand === "right" ? ankleFront0 : ankleBack0;
   // A leg cannot be longer than thigh + shank. When the pelvis rises out of
   // reach the foot leaves the ground, which is exactly what happens in the
   // airborne phase - so we lift the ankle rather than stretching the segment.
-  ankleR = clampToReach(hipR, ankleR, a.thighM + a.shankM);
-  ankleL = clampToReach(hipL, ankleL, a.thighM + a.shankM);
+  ankleR = clampToReach(hipR, ankleR, thigh + shank);
+  ankleL = clampToReach(hipL, ankleL, thigh + shank);
   // The knee bends toward the direction the chest faces at the trophy (+x for a
   // right-hander in this frame), never sideways.
   const kneeHintR = unit3(v3(mirror, 0.15, 0));
-  const kneeR = twoLinkJoint(hipR, ankleR, a.thighM, a.shankM, kneeHintR);
-  const kneeL = twoLinkJoint(hipL, ankleL, a.thighM, a.shankM, kneeHintR);
+  const kneeR = twoLinkJoint(hipR, ankleR, thigh, shank, kneeHintR);
+  const kneeL = twoLinkJoint(hipL, ankleL, thigh, shank, kneeHintR);
   const toeFront = unit3(v3(0.75 * mirror, 0.66, 0));
   const toeBack = unit3(v3(0.97 * mirror, 0.25, 0));
   const toeR = params.hand === "right" ? toeBack : toeFront;

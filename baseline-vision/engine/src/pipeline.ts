@@ -155,6 +155,7 @@ export function analyse(request: AnalysisRequest, options: PipelineOptions = {})
     mirrorConfidence: lift.mirrorConfidence,
     targetDirConfidence: lift.targetDirConfidence,
     verticalConfidence: lift.verticalConfidence,
+    scaleRelSd: lift.scaleRelSd,
     coverage: tracked.coverage,
     // The weakest of the layers a measurement depends on, not their average:
     // a perfect pose estimate on top of a broken reconstruction is still a

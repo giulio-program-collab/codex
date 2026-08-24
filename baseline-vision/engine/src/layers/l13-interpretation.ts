@@ -658,14 +658,34 @@ export function decideVerdict(
       reasons: blocking.map((b) => b.statement),
     };
   }
+  const rounded = Math.round(compositeScore);
+  const contributing = components.reduce((s, c) => s + c.basedOn.length, 0);
+  const reasons = [
+    `Der Wert stützt sich auf ${contributing} von ${TOTAL_SCORABLE_FEATURES} möglichen Kenngrößen; ` +
+      "die übrigen waren in diesem Video nicht genau genug messbar, um überhaupt etwas zu unterscheiden.",
+  ];
+  // A high score has to be read correctly, or it becomes the same kind of
+  // false precision as a low one. It does not say the technique is perfect: it
+  // says that on every dimension this video could resolve, nothing deviated
+  // from the reference band in the direction that carries a mechanism.
+  if (rounded >= 95) {
+    reasons.unshift(
+      "Auf keiner der messbaren Dimensionen liegt eine Abweichung vor, für die es einen " +
+        "biomechanischen Wirkmechanismus gäbe. Das heißt nicht „technisch perfekt“, sondern: " +
+        "Dieses Video zeigt nichts, was sich belegbar von der Referenz unterscheidet.",
+    );
+  }
   return {
     kind: "assessment",
-    score: Math.round(compositeScore),
+    score: rounded,
     confidence: clamp(featureConfidence * (quality.overall / 100), 0, 1),
     components,
     statement:
       "Die Bewertung setzt sich aus den unten aufgeführten Teilwerten zusammen und gilt nur für die " +
       "Größen, die in diesem Video messbar waren.",
-    reasons: [],
+    reasons,
   };
 }
+
+/** How many features the composite score could draw on if everything were measurable. */
+const TOTAL_SCORABLE_FEATURES = 11;
