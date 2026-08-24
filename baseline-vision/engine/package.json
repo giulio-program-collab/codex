@@ -1,0 +1,13 @@
+{
+  "name": "@baseline/vision-engine",
+  "private": true,
+  "type": "module",
+  "description": "Tennis-Videoanalyse: Pipeline von der Pose-Schaetzung bis zum Trainer-Report.",
+  "scripts": {
+    "test": "node --experimental-strip-types --test \"test/*.test.ts\"",
+    "demo": "node --experimental-strip-types tools/build-demo.ts"
+  },
+  "engines": {
+    "node": ">=22"
+  }
+}
