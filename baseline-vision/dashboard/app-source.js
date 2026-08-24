@@ -849,9 +849,7 @@ function renderMetrics() {
       const note = el("div", {
         class: "note",
         style: "display:none",
-        text:
-          m.notes.join(" ") +
-          (m.rejectionReason ? " " + m.rejectionReason : ""),
+        text: m.notes.join(" "),
       });
       nameCell.appendChild(
         el("button", {
@@ -873,16 +871,24 @@ function renderMetrics() {
     row.appendChild(
       el("td", {}, [
         el("div", { class: "val", text: m.formatted }),
-        m.interval95
+        // A rejected measurement gets its reason, not its interval. Printing
+        // "95 %: -5444 … 8670 °/s" beside a struck-through number invites the
+        // reader to take something from it, and there is nothing to take.
+        m.rejected
           ? el("div", {
               class: "note",
-              text:
-                "95 %: " +
-                num(m.interval95[0], 2) +
-                " … " +
-                num(m.interval95[1], 2),
+              text: m.rejectionReason || "Verworfen.",
             })
-          : null,
+          : m.interval95
+            ? el("div", {
+                class: "note",
+                text:
+                  "95 %: " +
+                  num(m.interval95[0], 2) +
+                  " … " +
+                  num(m.interval95[1], 2),
+              })
+            : null,
       ]),
     );
     row.appendChild(
