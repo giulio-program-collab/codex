@@ -7,8 +7,9 @@ import { SERVE_PRESETS, generateServe } from "../src/fixtures/serve-model.ts";
 import { CAMERA_RIGS, cameraFromRig, renderClip } from "../src/fixtures/render.ts";
 import { anthropometryFor, expectedBoneLengths } from "../src/fixtures/anthropometry.ts";
 import { REALISTIC_LEARNED_LIFT_SIGMA_M } from "../src/fixtures/simulated-lift.ts";
-import { BONES, JOINTS } from "../src/core/types.ts";
+import { BONES } from "../src/core/types.ts";
 import { dist3 } from "../src/core/math.ts";
+import { rootRelativeJointErrorM } from "../src/fixtures/accuracy.ts";
 import { metric } from "./helpers.ts";
 
 /**
@@ -102,69 +103,6 @@ test("the synthetic serve reproduces the kinematics it claims", () => {
 /* Reconstruction accuracy                                             */
 /* ------------------------------------------------------------------ */
 
-/**
- * Mean per-joint position error, after removing the root offset and the single
- * best-fit rotation about the vertical.
- *
- * The yaw has to come out: the court frame's "toward the target" axis is
- * estimated from the player's own shoulders and is only good to a few tens of
- * degrees, so leaving it in would measure that estimate rather than the
- * reconstruction. Nothing else is removed — no per-frame alignment, no scale —
- * so the number that survives is the reconstruction's own error.
- */
-function meanJointError(
-  reconstructed: Array<Record<string, { p: { x: number; y: number; z: number } } | undefined>>,
-  truth: ReturnType<typeof generateServe>,
-  fps: number,
-): number {
-  const errorAtYaw = (degrees: number, step: number): number => {
-    const c = Math.cos((degrees * Math.PI) / 180);
-    const s = Math.sin((degrees * Math.PI) / 180);
-    let total = 0;
-    let count = 0;
-    for (let i = 0; i < reconstructed.length; i += step) {
-      const truthIndex = Math.min(truth.frames.length - 1, Math.round((i / fps) * 240));
-      const t = truth.frames[truthIndex];
-      const root = reconstructed[i]?.pelvis?.p;
-      if (!root) continue;
-      for (const j of JOINTS) {
-        const r = reconstructed[i]?.[j]?.p;
-        if (!r) continue;
-        const dx = r.x - root.x;
-        const dy = r.y - root.y;
-        const dz = r.z - root.z;
-        const rx = c * dx - s * dy;
-        const ry = s * dx + c * dy;
-        const tx = t.joints[j].x - t.joints.pelvis.x;
-        const ty = t.joints[j].y - t.joints.pelvis.y;
-        const tz = t.joints[j].z - t.joints.pelvis.z;
-        total += Math.hypot(rx - tx, ry - ty, dz - tz);
-        count++;
-      }
-    }
-    return count > 0 ? total / count : Number.POSITIVE_INFINITY;
-  };
-
-  let best = Number.POSITIVE_INFINITY;
-  let bestYaw = 0;
-  for (let d = -180; d < 180; d += 2) {
-    const e = errorAtYaw(d, 4);
-    if (e < best) {
-      best = e;
-      bestYaw = d;
-    }
-  }
-  // Refine, then evaluate on every frame.
-  for (let d = bestYaw - 2; d <= bestYaw + 2; d += 0.25) {
-    const e = errorAtYaw(d, 4);
-    if (e < best) {
-      best = e;
-      bestYaw = d;
-    }
-  }
-  return errorAtYaw(bestYaw, 1);
-}
-
 /** Median reconstructed stature, as a 3D distance from head to ankle. */
 function reconstructedStatureM(
   poses: Array<Record<string, { p: { x: number; y: number; z: number } } | undefined>>,
@@ -224,12 +162,12 @@ test("a learned depth prior improves reconstruction accuracy, as the architectur
     const geometric = buildScenario(`geo-${rig}`, "Nur Geometrie", base);
     const learned = buildScenario(`learned-${rig}`, "Mit Tiefenprior", { ...base, learnedDepth: true });
 
-    const geoError = meanJointError(
+    const geoError = rootRelativeJointErrorM(
       analyse(geometric.request, { now: NOW }).intermediates.poses3d,
       geometric.truth,
       240,
     );
-    const learnedError = meanJointError(
+    const learnedError = rootRelativeJointErrorM(
       analyse(learned.request, { now: NOW, depthPrior: learned.depthPrior }).intermediates.poses3d,
       learned.truth,
       240,
@@ -259,7 +197,7 @@ test("the geometric fallback reports its own weakness rather than hiding it", ()
     knownFieldOfView: true,
   });
   const { report, intermediates } = analyse(scenario.request, { now: NOW });
-  const error = meanJointError(intermediates.poses3d, scenario.truth, 240);
+  const error = rootRelativeJointErrorM(intermediates.poses3d, scenario.truth, 240);
   const withPrior = buildScenario("geo-honesty-prior", "Mit Tiefenprior", {
     preset: "elite",
     rig: "elevatedSide",

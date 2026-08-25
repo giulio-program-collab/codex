@@ -40,8 +40,10 @@ engine/       Die Messkette: 14 Layer, jeder einzeln testbar
   src/session.ts  Mehrere Wiederholungen einer Sitzung, aggregiert
   src/fixtures/ Parametrisches 3D-Aufschlagmodell + virtuelle Kamera (Ground Truth)
   test/         70 Tests: Acceptance, Validierung, Sitzung, Layer-Unit-Tests, Legacy-Vergleich
-  tools/        Baut das Dashboard aus echtem Pipeline-Output
+  playground/   Browser-Einstiegspunkt für den Prüfstand
+  tools/        Baut Dashboard und Prüfstand aus echtem Pipeline-Output
 dashboard/    Trainer-Oberfläche, eine eigenständige HTML-Datei
+playground/   Prüfstand: Aufnahmebedingungen einstellen, Pipeline live rechnen lassen
 docs/         Analyse, Architektur, Konzepte, Validierung, Plan, Risiken
 ```
 
@@ -51,12 +53,28 @@ Node 22 oder neuer, keine Abhängigkeiten.
 
 ```bash
 cd engine
-node --experimental-strip-types --test "test/*.test.ts"   # Testsuite
-node --experimental-strip-types tools/build-demo.ts       # Dashboard bauen
+node --experimental-strip-types --test "test/*.test.ts"     # Testsuite
+node --experimental-strip-types tools/walkthrough.ts        # Ein Aufschlag, Schicht für Schicht
+node --experimental-strip-types tools/build-demo.ts         # Dashboard bauen
+node --experimental-strip-types tools/build-playground.ts   # Prüfstand bauen
 ```
 
-Danach `dashboard/index.html` im Browser öffnen. Die Datei ist eigenständig —
-kein Server, kein Netz.
+Danach `dashboard/index.html` oder `playground/index.html` im Browser öffnen.
+Beide Dateien sind eigenständig — kein Server, kein Netz.
+
+## Der Prüfstand
+
+`playground/index.html` enthält die vollständige Engine als gebündeltes
+JavaScript. Wer Kameraposition, Bildrate, Aufnahmequalität, Verdeckung oder
+Wiederholungszahl ändert, löst eine echte Analyse aus: Die Aufnahme wird aus dem
+Bewegungsmodell gerendert, durch dieselben vierzehn Schichten geschickt, die
+auch die Testsuite durchläuft, und das Ergebnis unverändert angezeigt. Es gibt
+keine vorbereiteten Ergebnisse.
+
+Weil die Bewegung aus einem Modell stammt, sind ihre wahren Werte bekannt. Der
+Prüfstand zeigt sie neben den gemessenen — und damit, ob die angegebenen
+Intervalle halten, was sie versprechen. Zum Vergleich rechnet er auf derselben
+Aufnahme das alte Verfahren mit.
 
 ## Das Grundprinzip
 

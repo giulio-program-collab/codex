@@ -4,130 +4,20 @@ import assert from "node:assert/strict";
 import { analyse } from "../src/pipeline.ts";
 import { buildScenario, GOOD_CAPTURE } from "../src/fixtures/scenarios.ts";
 import { SERVE_PRESETS, generateServe } from "../src/fixtures/serve-model.ts";
-import { CAMERA_RIGS, cameraFromRig } from "../src/fixtures/render.ts";
-import { project } from "../src/core/camera.ts";
-import { clamp, type Vec2 } from "../src/core/math.ts";
-import type { Joint } from "../src/core/types.ts";
+import { LEGACY_REFERENCES, legacyServeScore } from "../src/legacy/legacy-2d.ts";
 import { metric } from "./helpers.ts";
 
 /**
  * What the existing tool does, and why it produces the Sinner result.
  *
- * `legacyServeScore` below is the shipped algorithm, transcribed from the
- * production bundle of Baseline Pro. A coach marks two key frames and clicks
- * joints on them; the app computes four angles from those image points, scores
- * each against a published mean and standard deviation, and averages the four
- * scores into a similarity out of ten.
- *
- * The tests here feed it the *best case it could ever see*: a world-class serve
- * whose joint positions are known exactly, clicked with zero error, on the
- * correct frames, by a coach who never mis-identifies a landmark. Every
- * remaining error is therefore inherent to the method rather than to the user.
- *
- * The reference values and the scoring curve are quoted from the tool itself:
- *
- *   trunk inclination at trophy   25.0 +/- 7.1 deg
- *   front knee flexion at trophy  64.5 +/- 9.7 deg
- *   shoulder elevation at contact 110.7 +/- 16.9 deg
- *   elbow flexion at contact      30.1 +/- 15.9 deg
- *   score(z) = clamp(0, 10, 10 * exp(-z^2 / 8))
- *
- * All four come from three-dimensional laboratory kinematics — the Frontiers in
- * Sports and Active Living 2024 meta-analysis, ISB-normalised, from multi-camera
- * marker systems. The tool compares them against angles measured in the image
- * plane. Those are not the same quantity, and the gap between them is the
- * defect.
+ * The algorithm itself lives in `src/legacy/legacy-2d.ts`, transcribed from the
+ * production bundle of Baseline Pro, so that the tests here and the playground
+ * run the very same code. These tests feed it the *best case it could ever
+ * see*: a world-class serve whose joint positions are known exactly, clicked
+ * with zero error, on the correct frames, by a coach who never mis-identifies a
+ * landmark. Every remaining error is therefore inherent to the method rather
+ * than to the user.
  */
-
-const LEGACY_REFERENCES = {
-  trunkIncl: { mean: 25.0, sd: 7.1, label: "Rumpfneigung (Trophy)" },
-  kneeFlex: { mean: 64.5, sd: 9.7, label: "Vordere Knieflexion (Trophy)" },
-  shoulderElev: { mean: 110.7, sd: 16.9, label: "Schulterelevation (Kontakt)" },
-  elbowFlex: { mean: 30.1, sd: 15.9, label: "Ellbogenflexion (Kontakt)" },
-} as const;
-
-/** The tool's similarity curve, verbatim. */
-function legacySimilarity(value: number, mean: number, sd: number): { z: number; score: number } {
-  const z = (value - mean) / sd;
-  return { z, score: clamp(10 * Math.exp(-(z * z) / 8), 0, 10) };
-}
-
-/** Interior angle A-B-C, measured in the image plane. */
-function angle2D(a: Vec2, b: Vec2, c: Vec2): number {
-  const u = { x: a.x - b.x, y: a.y - b.y };
-  const w = { x: c.x - b.x, y: c.y - b.y };
-  const nu = Math.hypot(u.x, u.y);
-  const nw = Math.hypot(w.x, w.y);
-  if (nu < 1e-9 || nw < 1e-9) return 0;
-  return (Math.acos(clamp((u.x * w.x + u.y * w.y) / (nu * nw), -1, 1)) * 180) / Math.PI;
-}
-
-/** Inclination of a line from image vertical, as the tool computes it. */
-function inclinationFromVertical(top: Vec2, bottom: Vec2): number {
-  return Math.abs((Math.atan2(top.x - bottom.x, bottom.y - top.y) * 180) / Math.PI);
-}
-
-const mid = (a: Vec2, b: Vec2): Vec2 => ({ x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 });
-
-export interface LegacyResult {
-  angles: Record<keyof typeof LEGACY_REFERENCES, number>;
-  scores: Record<keyof typeof LEGACY_REFERENCES, number>;
-  zs: Record<keyof typeof LEGACY_REFERENCES, number>;
-  overall: number;
-}
-
-/**
- * Runs the legacy algorithm on a known serve, with perfect digitising.
- * `rig` selects the camera; `hand` is assumed right.
- */
-function legacyServeScore(rigName: keyof typeof CAMERA_RIGS, presetName: keyof typeof SERVE_PRESETS): LegacyResult {
-  const truth = generateServe(SERVE_PRESETS[presetName], 240);
-  const cam = cameraFromRig(CAMERA_RIGS[rigName]);
-
-  // The two key frames the tool asks for, located on ground truth rather than
-  // by eye — again, better than any coach could do.
-  const kneeSeries = truth.frames.map((f) => f.dof.kneeFlexDeg);
-  const trophyIndex = kneeSeries.indexOf(Math.max(...kneeSeries));
-  const contactIndex = Math.round(SERVE_PRESETS[presetName].contactT * 240);
-
-  const at = (index: number, joint: Joint): Vec2 => project(cam, truth.frames[index].joints[joint]).p;
-
-  const trophy = {
-    shFront: at(trophyIndex, "shoulderL"),
-    shBack: at(trophyIndex, "shoulderR"),
-    hipFront: at(trophyIndex, "hipL"),
-    hipBack: at(trophyIndex, "hipR"),
-    kneeFront: at(trophyIndex, "kneeL"),
-    ankleFront: at(trophyIndex, "ankleL"),
-  };
-  const impact = {
-    shHit: at(contactIndex, "shoulderR"),
-    elbow: at(contactIndex, "elbowR"),
-    wrist: at(contactIndex, "wristR"),
-    hipHit: at(contactIndex, "hipR"),
-  };
-
-  const angles = {
-    trunkIncl: inclinationFromVertical(
-      mid(trophy.shFront, trophy.shBack),
-      mid(trophy.hipFront, trophy.hipBack),
-    ),
-    kneeFlex: 180 - angle2D(trophy.hipFront, trophy.kneeFront, trophy.ankleFront),
-    shoulderElev: angle2D(impact.hipHit, impact.shHit, impact.elbow),
-    elbowFlex: 180 - angle2D(impact.shHit, impact.elbow, impact.wrist),
-  };
-
-  const scores = {} as LegacyResult["scores"];
-  const zs = {} as LegacyResult["zs"];
-  for (const key of Object.keys(LEGACY_REFERENCES) as Array<keyof typeof LEGACY_REFERENCES>) {
-    const r = LEGACY_REFERENCES[key];
-    const sim = legacySimilarity(angles[key], r.mean, r.sd);
-    scores[key] = sim.score;
-    zs[key] = sim.z;
-  }
-  const overall = Object.values(scores).reduce((s, v) => s + v, 0) / 4;
-  return { angles, scores, zs, overall };
-}
 
 /* ------------------------------------------------------------------ */
 

@@ -121,16 +121,25 @@ export const MIN_REPETITION_QUALITY = 45;
 export const OUTLIER_DEVIATIONS = 3.5;
 export const MIN_REPETITIONS_FOR_OUTLIER_REJECTION = 5;
 
-export function analyseSession(request: SessionRequest, options: PipelineOptions = {}): SessionReport {
+export interface SessionOptions extends PipelineOptions {
+  /**
+   * Called before each repetition is analysed. A session of six serves takes
+   * long enough that an interface needs to say where it is.
+   */
+  onRepetition?: (index: number, count: number) => void;
+}
+
+export function analyseSession(request: SessionRequest, options: SessionOptions = {}): SessionReport {
   const notes: string[] = [];
   const count = request.repetitions.length;
 
-  const reports = request.repetitions.map((rep) =>
-    analyse(
+  const reports = request.repetitions.map((rep, index) => {
+    options.onRepetition?.(index, count);
+    return analyse(
       { ...rep.request, player: request.player, stroke: request.stroke },
       { ...options, depthPrior: rep.depthPrior ?? options.depthPrior, repetitions: count },
-    ),
-  );
+    );
+  });
 
   // --- Which repetitions may contribute --------------------------------
   const excluded: SessionReport["excluded"] = [];
