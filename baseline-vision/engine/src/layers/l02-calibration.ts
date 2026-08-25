@@ -255,18 +255,25 @@ function classifyPlacement(
   const early = fractions.slice(0, Math.max(5, Math.floor(fractions.length * 0.3)));
   const fr = clamp(median(early) ?? 0.5, 0, 1);
 
-  // fr ~ 1 means the shoulder line lies in the image plane. During the ready
-  // position of a serve the shoulders are roughly parallel to the baseline, so
-  // a fully visible shoulder line means the camera looks along the baseline
-  // (behind or in front); a collapsed one means a side view.
+  // What the foreshortening means depends on how the player stands at the start
+  // of the stroke, and that differs by stroke.
+  //
+  // A groundstroke begins square to the net, so the shoulder line runs along the
+  // baseline: seeing it at full width means the camera looks down the baseline.
+  // A serve begins side-on, with the shoulder line pointing *across* the court —
+  // so the same observation means the opposite. Reading a serve with the
+  // groundstroke rule labelled every side-on camera "behind_baseline", which is
+  // wrong in the debug view precisely when somebody is using the debug view to
+  // work out why a measurement looks odd.
+  const sideOnWhenVisible = req.stroke === "serve";
   let placement: CameraPlacement;
   let confidence: number;
   if (fr > 0.85) {
-    placement = "behind_baseline";
-    confidence = 0.75;
+    placement = sideOnWhenVisible ? "side_on" : "behind_baseline";
+    confidence = 0.7;
   } else if (fr < 0.45) {
-    placement = "side_on";
-    confidence = 0.75;
+    placement = sideOnWhenVisible ? "behind_baseline" : "side_on";
+    confidence = 0.7;
   } else {
     placement = "diagonal";
     confidence = 0.55;

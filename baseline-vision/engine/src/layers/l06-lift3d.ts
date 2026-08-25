@@ -191,6 +191,43 @@ export const GROUND_CONTACT_BAND_M = 0.07;
 export const ROOT_SHAPE_SIGMA_FRACTION = 0.02;
 
 /**
+ * How far beyond the anatomical bone length a projection must fall, in units of
+ * its own measurement noise, before it counts as geometrically impossible
+ * rather than as a noisy in-plane bone.
+ */
+export const IMPOSSIBLE_SIGMA = 2;
+
+/**
+ * Relative bone-length error at which the reconstruction is worth nothing.
+ *
+ * This is a fault detector, not an accuracy scale, and the difference matters.
+ * A low bone-length error means the skeleton is internally consistent; it does
+ * *not* mean the skeleton is right. The purely geometric solve is the proof:
+ * it holds bone lengths to 4 % while sitting 330 mm from the truth, because a
+ * mirrored or limb-flipped reconstruction is perfectly self-consistent. A
+ * reconstruction anchored on a depth prior scores a worse 6 % — the prior pulls
+ * joints toward independently noisy absolute depths — while being ten times
+ * more accurate.
+ *
+ * So the threshold is set where real breakage starts (usable captures land at
+ * 4-7 %, unusable ones at 11-15 %), and the weight that separates a good
+ * reconstruction from a self-consistently wrong one is carried by the mirror
+ * and vertical confidences instead.
+ */
+export const MAX_TOLERABLE_BONE_ERROR = 0.15;
+
+/**
+ * Bone-length error a healthy reconstruction carries anyway, and below which
+ * nothing is deducted.
+ *
+ * Temporal filtering of the depth channel and the blend with a depth prior both
+ * trade exact segment lengths for smoothness and accuracy, and they are right
+ * to: usable captures land between four and seven percent. Penalising from zero
+ * would charge every good reconstruction for doing the correct thing.
+ */
+export const NORMAL_BONE_ERROR = 0.07;
+
+/**
  * How much of a joint's depth uncertainty survives the temporal filter.
  * The independent part is suppressed by roughly the square root of the number
  * of samples inside the filter's effective window; the correlated part (scale,
@@ -535,9 +572,18 @@ function finishLift(
     notes.push("Die Zielrichtung ist unsicher; richtungsabhängige Größen werden entsprechend gekennzeichnet.");
   }
 
+  // Reconstruction quality, from four things that each fail independently:
+  // whether the finished skeleton is anatomically self-consistent, whether any
+  // segment is where no segment could be, whether "up" was recovered, and
+  // whether the depth direction is the right way round.
   const quality = clamp(
-    (1 - clamp(boneResidualM / (0.08 * opts.anthro.heightM), 0, 1)) *
-      (1 - clamp((impossibleFraction - EXPECTED_IMPOSSIBLE_FRACTION) * 3, 0, 0.8)) *
+    (1 -
+      clamp(
+        (pick.boneLengthErrorRel - NORMAL_BONE_ERROR) / (MAX_TOLERABLE_BONE_ERROR - NORMAL_BONE_ERROR),
+        0,
+        1,
+      )) *
+      (1 - clamp(impossibleFraction * 6, 0, 0.8)) *
       (0.5 + 0.5 * upConfidence) *
       (0.55 + 0.45 * mirrorConfidence),
     0,
@@ -552,7 +598,12 @@ function finishLift(
       quality,
       notes,
       diagnostics: {
-        knochenResiduumCm: Number((boneResidualM * 100).toFixed(2)),
+        // Only the finished reconstruction's bone-length error is reported. The
+        // solve-time "residual" that used to sit here was zero by construction
+        // for every well-behaved bone, so it measured nothing but the size of
+        // the impossible cases and read as a suspiciously small number exactly
+        // when the reconstruction was worst.
+        knochenlaengenfehlerProzent: Number((pick.boneLengthErrorRel * 100).toFixed(2)),
         unmoeglicheSegmenteProzent: Number((impossibleFraction * 100).toFixed(2)),
         mehrdeutigeSegmenteProzent: Number((ambiguousFraction * 100).toFixed(1)),
         tiefenprior: opts.depthPrior?.id ?? "keiner",
@@ -607,6 +658,19 @@ interface PropagationOutput {
   impossible: number;
   solves: number;
   ambiguous: number;
+  /**
+   * Mean relative error of the *finished* reconstruction's bone lengths against
+   * the anthropometric table.
+   *
+   * Measured on the rebuilt positions, after temporal filtering and the depth
+   * prior, which is the only place it says anything. Measured during the solve
+   * it is identically zero by construction — the solve places each child at
+   * exactly the tabulated distance — so the "bone residual" it used to report
+   * only ever accumulated the handful of geometrically impossible cases, and a
+   * noisier clip with fewer of them scored *better* on reconstruction quality
+   * than a clean one.
+   */
+  boneLengthErrorRel: number;
 }
 
 /**
@@ -669,10 +733,20 @@ function propagateDepths(input: PropagationInput): PropagationOutput {
       const disc = L * L - inPlaneM * inPlaneM;
 
       if (disc <= 0) {
-        // The image says this bone is longer than it can be. The rate at which
-        // that happens is the single most informative reconstruction-quality
-        // number the system has, so it is counted rather than smoothed away.
-        impossible++;
+        // The image says this bone is longer than it can be.
+        //
+        // Counting every such case overstates the problem badly. A bone lying
+        // in the image plane projects to very nearly its full length, so
+        // ordinary keypoint noise pushes it past that length about half the
+        // time — and on a clean 240 fps clip that alone produced a "13 to 23 %
+        // geometrically impossible" figure that meant nothing and sent anyone
+        // reading the debug view looking for a scale error that was not there.
+        //
+        // What deserves counting is an excess the measurement noise cannot
+        // explain. The clamping below is unchanged either way; only the
+        // diagnostic becomes worth reading.
+        const noise = sigmaPFor(s, edge, tp, rp, cam);
+        if (inPlaneM - L > IMPOSSIBLE_SIGMA * noise) impossible++;
         boneResidualSum += inPlaneM - L;
         boneResidualCount++;
         tAlongRay[edge.child] = tp * c;
@@ -861,7 +935,30 @@ function propagateDepths(input: PropagationInput): PropagationOutput {
     poses.push(pose);
   }
 
-  return { poses, boneResidualSum, boneResidualCount, impossible, solves, ambiguous };
+  // Bone-length consistency of the finished reconstruction.
+  let lengthErrorSum = 0;
+  let lengthErrorCount = 0;
+  for (let i = 0; i < n; i++) {
+    for (const edge of trees[i]) {
+      if (!edge.primary) continue;
+      const a = poses[i][edge.parent];
+      const b = poses[i][edge.child];
+      if (!a || !b || edge.lengthM <= 0) continue;
+      lengthErrorSum += Math.abs(norm3(sub3(b.p, a.p)) - edge.lengthM) / edge.lengthM;
+      lengthErrorCount++;
+    }
+  }
+  const boneLengthErrorRel = lengthErrorCount > 0 ? lengthErrorSum / lengthErrorCount : 1;
+
+  return {
+    poses,
+    boneResidualSum,
+    boneResidualCount,
+    impossible,
+    solves,
+    ambiguous,
+    boneLengthErrorRel,
+  };
 }
 
 /**
@@ -1020,7 +1117,13 @@ export const PRIOR_MIRROR_CONFIDENCE = 0.9;
  * length, and noise pushes half of those measurements over it. Penalising from
  * zero would mark every well-framed clip as broken.
  */
-export const EXPECTED_IMPOSSIBLE_FRACTION = 0.12;
+/**
+ * Impossible-segment rate expected from noise alone, now that the count only
+ * includes excesses the measurement noise cannot explain. Clean captures land
+ * at zero and marginal ones under one percent, so anything appreciably above
+ * this is a genuine geometric contradiction.
+ */
+export const EXPECTED_IMPOSSIBLE_FRACTION = 0.01;
 
 /** Grid resolution for the posterior over a bone's out-of-plane angle. */
 const POSTERIOR_GRID = 32;

@@ -48,33 +48,44 @@ export interface TrackingResult {
 }
 
 /**
- * Physiological speed ceilings in metres per second, by joint group.
- * A serving hand peaks near 12 m/s; a pelvis never exceeds about 4 m/s. Any
- * sample above these is a tracking failure, not an athletic feat.
+ * Physiological speed ceilings in metres per second, by joint.
+ *
+ * These are ceilings with headroom, not expected peaks. In a strong serve the
+ * hand reaches about 14 m/s and the hitting shoulder about 6; setting the cap
+ * at the second number deletes real data at the one instant that matters most,
+ * and deletes more of it the faster the player is. An earlier version did
+ * exactly that — the shoulder cap sat at 6 m/s against a measured peak of
+ * 5.9 — and threw away 77 samples from a clean 240 fps clip, all of them
+ * clustered within 60 ms of contact.
+ *
+ * The job of this rule is to catch a tracker that teleported a joint across the
+ * frame, not to enforce an opinion about how fast a human can move. Anything
+ * that survives it is still checked by the spike test, the bone-length test and
+ * the temporal filter.
  */
 const MAX_SPEED_MS: Partial<Record<Joint, number>> = {
-  wristL: 14,
-  wristR: 14,
-  handL: 16,
-  handR: 16,
-  elbowL: 10,
-  elbowR: 10,
-  ankleL: 9,
-  ankleR: 9,
-  footL: 10,
-  footR: 10,
-  kneeL: 7,
-  kneeR: 7,
-  head: 6,
-  neck: 5,
-  pelvis: 4.5,
-  spine: 4.5,
-  thorax: 5,
-  sternum: 5,
-  shoulderL: 6,
-  shoulderR: 6,
-  hipL: 5,
-  hipR: 5,
+  wristL: 20,
+  wristR: 20,
+  handL: 22,
+  handR: 22,
+  elbowL: 13,
+  elbowR: 13,
+  ankleL: 12,
+  ankleR: 12,
+  footL: 13,
+  footR: 13,
+  kneeL: 10,
+  kneeR: 10,
+  head: 8,
+  neck: 8,
+  pelvis: 6,
+  spine: 6,
+  thorax: 8,
+  sternum: 8,
+  shoulderL: 9,
+  shoulderR: 9,
+  hipL: 7,
+  hipR: 7,
 };
 const DEFAULT_MAX_SPEED_MS = 8;
 

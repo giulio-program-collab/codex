@@ -156,7 +156,7 @@ export interface FeatureOptions {
 export const METHOD_BIAS: Partial<Record<FeatureId, number>> = {
   kneeFlexionPeak: 3,
   trunkTiltAtTrophy: 3,
-  hipShoulderSeparationPeak: 9,
+  hipShoulderSeparationPeak: 6,
   shoulderElevationAtContact: 12,
   elbowFlexionAtContact: 8,
   pelvisPeakLead: 0.012,
@@ -471,10 +471,16 @@ export function extractFeatures(poses: Pose3D[], opts: FeatureOptions): FeatureR
     "Die Trennung speichert die elastische Energie, die der Rumpf anschließend freisetzt. Sie ist der " +
       "am häufigsten unterschätzte Unterschied zwischen einem Aufschlag mit und ohne Peitscheneffekt.",
     (ps) => {
+      // Separation is pelvis minus trunk, not the other way round: it is
+      // positive while the hips have opened *ahead* of the shoulders, which is
+      // the loaded state a coach is looking for. Computing trunk minus pelvis
+      // inverts the coaching meaning of every value and, because the peak
+      // search takes a maximum, turns a well-loaded 34 degrees into a reading
+      // near zero.
       const sep = ps.map((p) => {
-        const a = pelvisYaw(p);
-        const b = trunkYaw(p);
-        return a === null || b === null ? null : unwrapDelta(b - a);
+        const pelvis = pelvisYaw(p);
+        const trunk = trunkYaw(p);
+        return pelvis === null || trunk === null ? null : unwrapDelta(pelvis - trunk);
       });
       return robustPeak(
         sep.slice(searchLo, searchHi + 1),
