@@ -1,0 +1,561 @@
+<title>Der Sinner-Test, gemessen</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link
+  rel="stylesheet"
+  href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;600;700&family=IBM+Plex+Mono:wght@400;500&family=Source+Serif+4:opsz,wght@8..60,400;8..60,600&display=swap"
+/>
+
+<style>
+  :root {
+    --ground: #e6eaec;
+    --surface: #fbfcfd;
+    --surface-sunk: #eff2f4;
+    --ink: #101619;
+    --ink-soft: #57646c;
+    --ink-faint: #87949c;
+    --line: #ccd5da;
+    --accent: #0b6b68;
+    --accent-wash: rgba(11, 107, 104, 0.1);
+    --warn: #8f5c05;
+    --alert: #92261d;
+    --truth: #7d8c00;
+    --display: "Archivo", "Helvetica Neue", Arial, sans-serif;
+    --body: "Source Serif 4", Georgia, "Times New Roman", serif;
+    --data: "IBM Plex Mono", ui-monospace, Menlo, monospace;
+    color-scheme: light;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --ground: #0d1113;
+      --surface: #151b1e;
+      --surface-sunk: #101618;
+      --ink: #e7edef;
+      --ink-soft: #97a5ac;
+      --ink-faint: #6f7d85;
+      --line: #263036;
+      --accent: #4dbdb4;
+      --accent-wash: rgba(77, 189, 180, 0.14);
+      --warn: #d9a24a;
+      --alert: #e2766a;
+      --truth: #c3d635;
+      color-scheme: dark;
+    }
+  }
+
+  :root[data-theme="dark"] {
+    --ground: #0d1113;
+    --surface: #151b1e;
+    --surface-sunk: #101618;
+    --ink: #e7edef;
+    --ink-soft: #97a5ac;
+    --ink-faint: #6f7d85;
+    --line: #263036;
+    --accent: #4dbdb4;
+    --accent-wash: rgba(77, 189, 180, 0.14);
+    --warn: #d9a24a;
+    --alert: #e2766a;
+    --truth: #c3d635;
+    color-scheme: dark;
+  }
+
+  * {
+    box-sizing: border-box;
+  }
+
+  body {
+    margin: 0;
+    background: var(--ground);
+    color: var(--ink);
+    font-family: var(--body);
+    font-size: 1rem;
+    line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .sheet {
+    max-width: 61rem;
+    margin: 0 auto;
+    padding: clamp(1.5rem, 4vw, 3.5rem) clamp(1rem, 4vw, 2.5rem) 5rem;
+    display: flex;
+    flex-direction: column;
+    gap: clamp(1.75rem, 3vw, 2.75rem);
+  }
+
+  h1,
+  h2,
+  h3 {
+    font-family: var(--display);
+    font-weight: 600;
+    line-height: 1.12;
+    letter-spacing: -0.02em;
+    text-wrap: balance;
+    margin: 0;
+  }
+
+  h1 {
+    font-size: clamp(2rem, 5vw, 3rem);
+  }
+
+  h2 {
+    font-size: clamp(1.25rem, 2.6vw, 1.6rem);
+  }
+
+  h3 {
+    font-size: 1.02rem;
+  }
+
+  p {
+    margin: 0;
+    max-width: 64ch;
+  }
+
+  .eyebrow {
+    font-family: var(--data);
+    font-size: 0.68rem;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: var(--ink-faint);
+  }
+
+  header.masthead {
+    display: flex;
+    flex-direction: column;
+    gap: 0.7rem;
+    padding-bottom: 1.5rem;
+    border-bottom: 2px solid var(--ink);
+  }
+
+  header.masthead .lede {
+    font-size: 1.12rem;
+    color: var(--ink-soft);
+  }
+
+  .headline-figures {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: 1px;
+    background: var(--line);
+    border: 1px solid var(--line);
+    margin-top: 0.9rem;
+  }
+
+  .figure {
+    background: var(--surface);
+    padding: 0.85rem 0.95rem;
+  }
+
+  .figure .value {
+    display: block;
+    font-family: var(--display);
+    font-size: 1.9rem;
+    letter-spacing: -0.035em;
+    line-height: 1.05;
+    margin: 0.15rem 0 0.1rem;
+  }
+
+  .figure .value.old {
+    color: var(--alert);
+  }
+
+  .figure .value.new {
+    color: var(--accent);
+  }
+
+  .figure small {
+    display: block;
+    font-size: 0.76rem;
+    color: var(--ink-soft);
+    line-height: 1.35;
+  }
+
+  section.finding {
+    display: flex;
+    flex-direction: column;
+    gap: 0.9rem;
+  }
+
+  section.finding > .head {
+    display: flex;
+    align-items: baseline;
+    gap: 0.8rem;
+    border-bottom: 1px solid var(--line);
+    padding-bottom: 0.5rem;
+  }
+
+  section.finding > .head .n {
+    font-family: var(--data);
+    font-size: 0.8rem;
+    color: var(--accent);
+    padding-top: 0.1rem;
+  }
+
+  .scroller {
+    overflow-x: auto;
+    border: 1px solid var(--line);
+    background: var(--surface);
+  }
+
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.87rem;
+  }
+
+  caption {
+    caption-side: bottom;
+    text-align: left;
+    padding: 0.55rem 0.8rem;
+    font-size: 0.78rem;
+    color: var(--ink-soft);
+    border-top: 1px solid var(--line);
+  }
+
+  th,
+  td {
+    padding: 0.45rem 0.8rem;
+    text-align: right;
+    border-bottom: 1px solid var(--line);
+    font-family: var(--data);
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+  }
+
+  thead th {
+    font-size: 0.66rem;
+    letter-spacing: 0.09em;
+    text-transform: uppercase;
+    font-weight: 500;
+    color: var(--ink-faint);
+    background: var(--surface-sunk);
+  }
+
+  th:first-child,
+  td:first-child {
+    text-align: left;
+    font-family: var(--body);
+    white-space: normal;
+  }
+
+  tbody tr:last-child td {
+    border-bottom: 0;
+  }
+
+  td.good {
+    color: var(--accent);
+  }
+
+  td.bad {
+    color: var(--alert);
+  }
+
+  td.truth {
+    color: var(--ink-faint);
+  }
+
+  tr.truthrow td {
+    border-bottom: 0;
+    padding-top: 0;
+    font-size: 0.78rem;
+    color: var(--ink-faint);
+  }
+
+  .callout {
+    border-left: 3px solid var(--accent);
+    background: var(--surface);
+    padding: 0.9rem 1.1rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+
+  .callout[data-tone="warn"] {
+    border-left-color: var(--warn);
+  }
+
+  .callout[data-tone="limit"] {
+    border-left-color: var(--ink-faint);
+  }
+
+  .callout h3 {
+    font-size: 0.95rem;
+  }
+
+  .callout p {
+    font-size: 0.92rem;
+    color: var(--ink-soft);
+  }
+
+  .ledger {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    gap: 0.3rem 1.2rem;
+    font-family: var(--data);
+    font-size: 0.86rem;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .ledger dt {
+    color: var(--ink-soft);
+  }
+
+  .ledger dd {
+    margin: 0;
+  }
+
+  footer {
+    border-top: 1px solid var(--line);
+    padding-top: 1.2rem;
+    font-size: 0.83rem;
+    color: var(--ink-soft);
+  }
+
+  code {
+    font-family: var(--data);
+    font-size: 0.82rem;
+    background: var(--surface-sunk);
+    border: 1px solid var(--line);
+    padding: 0.05rem 0.3rem;
+  }
+</style>
+
+<div class="sheet">
+  <header class="masthead">
+    <p class="eyebrow">Baseline Vision · Ergebnisbericht · 25. August 2026</p>
+    <h1>Der Sinner-Test, gemessen</h1>
+    <p class="lede">
+      Vier Fragen entscheiden, ob der Umbau etwas gebracht hat. Jede ist hier beantwortet, indem beide
+      Verfahren auf dieselben Aufnahmen losgelassen wurden — reproduzierbar über
+      <code>tools/results.ts</code>.
+    </p>
+    <div class="headline-figures">
+      <div class="figure">
+        <span class="eyebrow">Altes Verfahren</span>
+        <span class="value old">4,8 / 10</span>
+        <small>für einen Weltklasse-Aufschlag, bei perfekten Eingaben</small>
+      </div>
+      <div class="figure">
+        <span class="eyebrow">Neue Kette</span>
+        <span class="value new">±2°</span>
+        <small>Abweichung der Knieflexion über alle fünf Kamerapositionen</small>
+      </div>
+      <div class="figure">
+        <span class="eyebrow">Intervalltreue</span>
+        <span class="value new">94 %</span>
+        <small>der wahren Werte liegen im angegebenen 95-%-Intervall</small>
+      </div>
+      <div class="figure">
+        <span class="eyebrow">Verweigert</span>
+        <span class="value">2 von 3</span>
+        <small>Aufnahmequalitäten tragen keine Bewertung — und bekommen keine</small>
+      </div>
+    </div>
+  </header>
+
+  <section class="finding">
+    <div class="head"><span class="n">01</span><h2>Der Sinner-Fall tritt nicht mehr auf</h2></div>
+    <p>
+      Ein Aufschlag auf ATP-Niveau, gefilmt aus fünf Positionen. Das alte Verfahren bekommt dabei bessere
+      Eingaben, als ein Trainer sie je liefern könnte: exakte Gelenkpositionen, die richtigen
+      Schlüsselbilder, kein Klickfehler. Jeder verbleibende Fehler steckt im Verfahren, nicht im Nutzer.
+    </p>
+    <div class="scroller">
+      <table>
+        <caption>
+          Wahre maximale Knieflexion: 66°. Das alte Verfahren misst Winkel in der Bildebene und vergleicht
+          sie mit Referenzwerten aus 3D-Laborkinematik — zwei verschiedene Größen.
+        </caption>
+        <thead>
+          <tr>
+            <th>Kamera</th>
+            <th>Alt: Punkte</th>
+            <th>Neu: Aussage</th>
+            <th>Kennzahl</th>
+            <th>Analysequalität</th>
+            <th>Knieflexion gemessen</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr><td>seitlich</td><td class="bad">4,8 / 10</td><td>Bewertung möglich</td><td>100 / 100</td><td>89 / 100</td><td class="good">67 ± 7°</td></tr>
+          <tr><td>erhöht seitlich</td><td class="bad">4,8 / 10</td><td>Bewertung möglich</td><td>100 / 100</td><td>89 / 100</td><td class="good">65 ± 7°</td></tr>
+          <tr><td>diagonal</td><td class="bad">7,2 / 10</td><td>Bewertung möglich</td><td>100 / 100</td><td>89 / 100</td><td class="good">65 ± 6°</td></tr>
+          <tr><td>von hinten</td><td class="bad">6,7 / 10</td><td>Bewertung möglich</td><td>100 / 100</td><td>89 / 100</td><td class="good">66 ± 4°</td></tr>
+          <tr><td>von vorn</td><td class="bad">6,3 / 10</td><td>Bewertung möglich</td><td>100 / 100</td><td>87 / 100</td><td class="good">68 ± 5°</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p>
+      Beim alten Verfahren schwankt derselbe Schlag um 2,3 Punkte, allein durch die Kameraposition, und
+      erreicht nie mehr als 7,2. Bei der neuen Kette ändert die Kameraposition das Ergebnis nicht mehr,
+      sondern nur noch dessen Unsicherheit: ±4° von hinten, ±7° von der Seite.
+    </p>
+    <div class="callout" data-tone="warn">
+      <h3>Was die 100 nicht bedeutet</h3>
+      <p>
+        Die Parameter des Weltklasse-Modells liegen nahe an den publizierten Elite-Mittelwerten, gegen die
+        verglichen wird. Die Kennzahl ist deshalb kein Beleg für Güte — sie belegt nur, dass ein sauber
+        ausgeführter Aufschlag nicht länger als mittelmäßig abgestraft wird. Aussagekräftig ist die
+        gemessene Knieflexion, nicht die Zahl daneben.
+      </p>
+    </div>
+  </section>
+
+  <section class="finding">
+    <div class="head"><span class="n">02</span><h2>Zwei Spielklassen sind unterscheidbar — bei einer von vier Kenngrößen</h2></div>
+    <p>
+      Der härtere Test: Weltklasse gegen einen technisch schwachen Nachwuchsaufschlag, beide aus derselben
+      Kameraposition. Zwei Messungen gelten als getrennt, wenn ihr Abstand mindestens zwei kombinierte
+      Standardabweichungen beträgt.
+    </p>
+    <div class="scroller">
+      <table>
+        <caption>Aus je einer einzelnen Aufnahme, erhöht seitlich, 240 fps, kalibriert.</caption>
+        <thead>
+          <tr>
+            <th>Kenngröße</th>
+            <th>Weltklasse</th>
+            <th>Nachwuchs</th>
+            <th>Getrennt?</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr><td>Maximale Knieflexion</td><td>65 ± 7°</td><td>23 ± 7°</td><td class="good">ja · 4,3 σ</td></tr>
+          <tr class="truthrow"><td>wahr</td><td>66°</td><td>28°</td><td></td></tr>
+          <tr><td>Schlägerkopfgeschwindigkeit</td><td>94 ± 15 km/h</td><td>60 ± 13 km/h</td><td class="bad">nein · 1,7 σ</td></tr>
+          <tr class="truthrow"><td>wahr</td><td>120 km/h</td><td>69 km/h</td><td></td></tr>
+          <tr><td>Hüft-Schulter-Trennung</td><td>37 ± 10°</td><td>16 ± 10°</td><td class="bad">nein · 1,4 σ</td></tr>
+          <tr class="truthrow"><td>wahr</td><td>34°</td><td>9°</td><td></td></tr>
+          <tr><td>Treffpunkt / Körperhöhe</td><td>1,61 ± 0,03</td><td>1,46 ± 0,28</td><td class="bad">nein · 0,6 σ</td></tr>
+          <tr class="truthrow"><td>wahr</td><td>1,60</td><td>1,24</td><td></td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p>
+      Das ist ein ehrliches, gemischtes Ergebnis. Die Knieflexion trennt sauber. Die drei übrigen Größen
+      zeigen zwar in die richtige Richtung, aber aus <em>einer</em> Aufnahme reicht die Genauigkeit nicht,
+      um den Unterschied zu behaupten — und das System behauptet ihn folgerichtig auch nicht. Mit mehreren
+      Wiederholungen schrumpft die Unsicherheit des Mittelwerts, bis auf den systematischen Sockel.
+    </p>
+    <p>
+      Das alte Verfahren vergibt für dieselben beiden Aufschläge 4,8 und 4,0 von 10 — 0,9 Punkte
+      Unterschied auf einer Skala, die allein durch die Kamerawahl um 2,3 Punkte springt. Es kann die
+      beiden Spielklassen nicht auseinanderhalten.
+    </p>
+  </section>
+
+  <section class="finding">
+    <div class="head"><span class="n">03</span><h2>Die Zahlen stimmen, und die Intervalle halten</h2></div>
+    <p>
+      Neun Durchläufe: drei Kamerapositionen mal drei Rauschmuster. Da die Bewegung aus einem Modell
+      stammt, ist ihr wahrer Wert bekannt — die entscheidende Frage ist nicht nur, wie groß der Fehler
+      ist, sondern ob das System ihn korrekt angekündigt hat.
+    </p>
+    <div class="scroller">
+      <table>
+        <caption>
+          |Fehler| / σ unter 1,0 heißt: Die Abweichung bleibt innerhalb der Unsicherheit, die das System
+          selbst angegeben hat.
+        </caption>
+        <thead>
+          <tr>
+            <th>Kenngröße</th>
+            <th>Wahr</th>
+            <th>Mittlerer Fehler</th>
+            <th>|Fehler| / σ</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr><td>Maximale Knieflexion</td><td>66,0°</td><td>−0,9°</td><td class="good">0,2</td></tr>
+          <tr><td>Treffpunkt / Körperhöhe</td><td>1,597</td><td>−0,005</td><td class="good">0,1</td></tr>
+          <tr><td>Treffpunkthöhe</td><td>3,05 m</td><td>+0,00 m</td><td class="good">0,1</td></tr>
+          <tr><td>Hüft-Schulter-Trennung</td><td>34,0°</td><td>+5,4°</td><td class="good">0,5</td></tr>
+          <tr><td>Schlägerkopf-Spitze</td><td>119,5 km/h</td><td>−8,5 km/h</td><td class="good">0,6</td></tr>
+          <tr><td>Ellbogenflexion (Kontakt)</td><td>17,0°</td><td>+7,1°</td><td class="good">0,8</td></tr>
+          <tr><td>Becken-Peak vor Kontakt</td><td>−0,075 s</td><td>−0,007 s</td><td class="good">0,8</td></tr>
+          <tr><td>Rumpf-Peak vor Kontakt</td><td>−0,057 s</td><td>−0,014 s</td><td class="bad">1,2</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <dl class="ledger">
+      <dt>Gelenkfehler der 3D-Rekonstruktion</dt>
+      <dd>32–44 mm, Mittel 36 mm (wurzelbezogen)</dd>
+      <dt>Intervalltreue</dt>
+      <dd>59 von 63 wahren Werten im angegebenen 95-%-Intervall — 94 %</dd>
+    </dl>
+    <p>
+      94 % ist der Wert, auf den es ankommt: Ein Intervall, das in 20 % der Fälle stimmt, ist eine
+      Lüge; eines, das in 100 % der Fälle stimmt, ist so weit, dass es nichts mehr aussagt.
+    </p>
+  </section>
+
+  <section class="finding">
+    <div class="head"><span class="n">04</span><h2>Schlechte Aufnahmen bekommen keine Note</h2></div>
+    <p>
+      Derselbe Weltklasse-Aufschlag, dreimal unterschiedlich gefilmt. Beim alten Verfahren hängt das
+      Ergebnis überhaupt nicht an der Aufnahmequalität — es vergibt sogar die höchste Punktzahl an die
+      zweitschlechteste Aufnahme, weil deren Kamerawinkel zufällig günstiger projiziert.
+    </p>
+    <div class="scroller">
+      <table>
+        <thead>
+          <tr>
+            <th>Aufnahme</th>
+            <th>Analysequalität</th>
+            <th>Neu: Aussage</th>
+            <th>Belastbare Messwerte</th>
+            <th>Alt sagt</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr><td>Stativ, 240 fps, kalibriert</td><td>89 / 100</td><td class="good">Bewertung</td><td>14 von 19</td><td class="bad">4,8 / 10</td></tr>
+          <tr><td>Handy am Zaun, 120 fps, diagonal</td><td>76 / 100</td><td>keine Bewertung</td><td>6 von 19</td><td class="bad">7,2 / 10</td></tr>
+          <tr><td>verwackelt, 30 fps, Beine verdeckt</td><td>31 / 100</td><td>keine Bewertung</td><td>0 von 14</td><td class="bad">4,8 / 10</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p>
+      Bei der Handyaufnahme bleiben 6 von 19 Kenngrößen belastbar. Sie werden angezeigt — mit Intervall
+      und Vertrauensangabe —, aber sie tragen zusammen keine Gesamtbewertung, und das System sagt das,
+      statt eine Zahl zu bilden, die niemand prüfen kann.
+    </p>
+  </section>
+
+  <section class="finding">
+    <div class="head"><span class="n">05</span><h2>Die Grenze, die bleibt</h2></div>
+    <p>
+      Die kinetische Kette ist das Wertvollste, was ein Aufschlag über sich verrät — und sie ist aus einer
+      einzelnen Kamera nicht vollständig auflösbar. Sechs Würfe bei 240 fps, Becken-Peak vor dem
+      Treffpunkt:
+    </p>
+    <dl class="ledger">
+      <dt>Mittelwert</dt>
+      <dd>−73,4 ms</dd>
+      <dt>Streuung zwischen den Würfen</dt>
+      <dd>6,8 ms</dd>
+      <dt>Unsicherheit des Mittelwerts</dt>
+      <dd>± 12,3 ms — davon 12,0 ms systematisch</dd>
+      <dt>Referenzbänder der Literatur</dt>
+      <dd>trennen Elite von Sub-Elite bei 4–9 ms</dd>
+    </dl>
+    <div class="callout" data-tone="limit">
+      <h3>Warum mehr Wiederholungen das nicht lösen</h3>
+      <p>
+        Der zufällige Anteil der Unsicherheit schrumpft mit 1/√n, der systematische nicht. Bei zwölf
+        Millisekunden Methodensockel bleibt die Unsicherheit über der Breite der Referenzbänder, auch bei
+        dreißig Aufschlägen. Was bleibt, ist der Vergleich des Spielers mit sich selbst über die Zeit —
+        dort kürzt sich der Sockel heraus.
+      </p>
+    </div>
+  </section>
+
+  <footer>
+    <p>
+      Alle Zahlen stammen aus einem einzigen Lauf von <code>tools/results.ts</code> gegen die Engine im
+      Stand dieses Berichts. Die Bewegung ist simuliert, nicht
+      gefilmt: Der Bericht misst das Verhalten der Messkette unter bekannten Bedingungen, nicht die
+      Leistung eines realen Pose-Schätzers auf realem Videomaterial. Selbst nachrechnen lässt sich alles
+      im Prüfstand.
+    </p>
+  </footer>
+</div>

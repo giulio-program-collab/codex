@@ -57,6 +57,7 @@ node --experimental-strip-types --test "test/*.test.ts"     # Testsuite
 node --experimental-strip-types tools/walkthrough.ts        # Ein Aufschlag, Schicht für Schicht
 node --experimental-strip-types tools/build-demo.ts         # Dashboard bauen
 node --experimental-strip-types tools/build-playground.ts   # Prüfstand bauen
+node --experimental-strip-types tools/results.ts            # Ergebnismessung alt gegen neu
 ```
 
 Danach `dashboard/index.html` oder `playground/index.html` im Browser öffnen.
@@ -102,3 +103,4 @@ zurückziehen, das seinen eigenen Belegen widerspricht.
 | [09 Validierung](docs/09-validierung.md)                   | Teststrategie und gemessene Genauigkeit                |
 | [10 Implementierungsplan](docs/10-implementierungsplan.md) | Reihenfolge, Aufwand, Priorisierung                    |
 | [11 Risiken und Grenzen](docs/11-risiken.md)               | Was das System nicht kann und nie können wird          |
+| [12 Ergebnisbericht](docs/12-ergebnis.html)                | Alt gegen neu, gemessen: Sinner-Test, Genauigkeit, Grenze |
