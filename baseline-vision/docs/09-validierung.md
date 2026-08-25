@@ -5,9 +5,10 @@
 Getestet wird nicht, ob die Visualisierung gut aussieht, sondern ob die Zahlen
 stimmen — und wo sie nicht stimmen, ob das System es sagt.
 
-Die Suite umfasst **60 Tests**: 11 Acceptance-Tests entlang der geforderten
-Prüffälle, 11 Validierungstests gegen Ground Truth, 3 Tests, die das Verfahren
-des bestehenden Systems nachrechnen, und 35 Layer-Unit-Tests.
+Die Suite umfasst **70 Tests**: 11 Acceptance-Tests entlang der geforderten
+Prüffälle, 11 Validierungstests gegen Ground Truth, 10 Tests der Sitzungsebene
+und des Zeitmessungs-Gates, 3 Tests, die das Verfahren des bestehenden Systems
+nachrechnen, und 35 Layer-Unit-Tests.
 
 ```bash
 cd engine && node --experimental-strip-types --test "test/*.test.ts"
@@ -167,6 +168,19 @@ Fünf echte Fehler, alle mit gesund aussehenden Zahlen:
 Dazu zwei Fixture-Fehler, die Tests gegen etwas prüfen ließen, das nie erzeugt
 worden war: eine Beckenhöhe, die annahm, das Sprunggelenk stünde unter der Hüfte,
 und ein Ballwurf, der auf ein bewegtes Ziel zielte und deshalb keine Parabel war.
+
+### Eine gemessene Grenze des Verfahrens
+
+Auch mit sechs Wiederholungen bei 240 Hz bleibt der kombinierte Streuungsterm der
+zeitlichen Größen (0,013–0,019 s) größer als die Referenzbänder, gegen die sie
+gestellt würden (0,004–0,009 s). Ursache ist der systematische Anteil von etwa
+12 ms, den keine Zahl von Wiederholungen verkleinert.
+
+Daraus folgt eine klare Aussage: **Der Unterschied zwischen Elite und
+High-Performance im absoluten Timing ist mit einer Kamera nicht auflösbar.** Die
+Reihenfolge der Segment-Peaks, der Eigenvergleich über Sitzungen und die Konstanz
+über Wiederholungen sind es sehr wohl — und zusammen mehr wert als ein Vergleich
+mit einem Millisekundenwert, den das Verfahren nicht tragen kann.
 
 ## Was noch validiert werden muss
 

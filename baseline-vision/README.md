@@ -37,8 +37,9 @@ Details in [`docs/01-bestandsanalyse.md`](docs/01-bestandsanalyse.md).
 engine/       Die Messkette: 14 Layer, jeder einzeln testbar
   src/core/     Geometrie, Kameramodell, Unsicherheitsrechnung, Typen
   src/layers/   L1 Ingest … L14 Report
+  src/session.ts  Mehrere Wiederholungen einer Sitzung, aggregiert
   src/fixtures/ Parametrisches 3D-Aufschlagmodell + virtuelle Kamera (Ground Truth)
-  test/         60 Tests: Acceptance, Validierung, Layer-Unit-Tests, Legacy-Vergleich
+  test/         70 Tests: Acceptance, Validierung, Sitzung, Layer-Unit-Tests, Legacy-Vergleich
   tools/        Baut das Dashboard aus echtem Pipeline-Output
 dashboard/    Trainer-Oberfläche, eine eigenständige HTML-Datei
 docs/         Analyse, Architektur, Konzepte, Validierung, Plan, Risiken

@@ -25,6 +25,11 @@ Monte-Carlo-Replikate der gesamten rekonstruierten Sequenz.
 | `sequenceMargin`            | Abstand zwischen beiden Peaks — positiv heißt proximal-distal intakt |
 | `racketHeadPeakSpeed`       | Spitzengeschwindigkeit des Schlägerkopfs                             |
 
+Die drei zeitlichen Größen unterliegen einem harten Gate: Unter 60 Hz werden sie
+gar nicht erzeugt, und ohne genug Wiederholungen werden sie zwar gemessen, aber
+nicht gegen eine Referenzverteilung gestellt. Siehe
+[12 Sitzung und Verlauf](12-sitzung-und-verlauf.md).
+
 `sequenceMargin` ist die wichtigste Einzelgröße des Aufschlags. Kehrt sich die
 Reihenfolge um — dreht der Rumpf vor dem Becken —, ist jede Diskussion über
 Timing-Feinheiten verfrüht, weil dem Rumpf die Basis fehlt, gegen die er

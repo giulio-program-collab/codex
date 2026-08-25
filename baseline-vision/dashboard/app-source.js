@@ -1082,6 +1082,241 @@ function statusLabel(s) {
 }
 
 /* ------------------------------------------------------------------ */
+/* Session                                                             */
+/* ------------------------------------------------------------------ */
+
+/**
+ * A whole session of repetitions.
+ *
+ * This is the panel that answers the question a single-stroke report cannot:
+ * not "was this serve good" but "how repeatable is this movement, and what do
+ * we know about its average". The distinction between the two spreads matters
+ * and is shown side by side — the scatter *between* repetitions is the
+ * athlete's consistency, a coaching target in its own right, while the
+ * precision *of the mean* is what a comparison against a reference gets to use.
+ */
+function renderSession() {
+  const c = current();
+  const host = $("session");
+  clear(host);
+  const s = c.session;
+
+  if (!s) {
+    host.appendChild(
+      el("div", { class: "card" }, [
+        el("p", {
+          class: "empty",
+          text:
+            "Für diese Aufnahme liegt nur ein einzelner Schlag vor. Mehrere Wiederholungen derselben " +
+            "Sitzung erlauben Aussagen, die ein einzelner Schlag nicht trägt — Konstanz, belastbare " +
+            "Mittelwerte und den Vergleich zeitlicher Größen mit einer Referenz.",
+        }),
+      ]),
+    );
+    return;
+  }
+
+  const card = el("div", { class: "card" });
+  card.appendChild(
+    el("div", { class: "controls" }, [
+      el("span", {
+        class: "chip",
+        text: s.repetitionCount + " Wiederholungen",
+      }),
+      el("span", { class: "chip", text: "Qualität (Median) " + s.quality }),
+      el("span", {
+        class: "chip " + (s.timing.allowed ? "ok" : "warn"),
+        text: s.timing.allowed
+          ? "Zeitmessung zulässig"
+          : "Zeitmessung gesperrt · " + s.timing.required + " Wdh. nötig",
+      }),
+      el("span", { class: "sub", text: s.date }),
+    ]),
+  );
+
+  if (s.timing.reason)
+    card.appendChild(el("div", { class: "note", text: s.timing.reason }));
+  for (const n of s.notes)
+    card.appendChild(el("div", { class: "note", text: n }));
+  for (const e of s.excluded) {
+    card.appendChild(
+      el("div", {
+        class: "note",
+        text: "Wiederholung " + e.repetition + " ausgeschlossen: " + e.reason,
+      }),
+    );
+  }
+
+  const table = el("table", { style: "margin-top:14px" });
+  table.appendChild(
+    el("thead", {}, [
+      el("tr", {}, [
+        el("th", { text: "Kenngröße" }),
+        el("th", { text: "n" }),
+        el("th", { text: "Mittel / Median" }),
+        el("th", { text: "Konstanz (Streuung)" }),
+        el("th", { text: "Mittelwert genau auf" }),
+        el("th", { text: "Referenz" }),
+      ]),
+    ]),
+  );
+  const body = el("tbody");
+  const comparisonFor = (id) => s.comparisons.find((x) => x.featureId === id);
+
+  for (const a of s.aggregates) {
+    const cmp = comparisonFor(a.featureId);
+    const row = el("tr", {});
+    row.appendChild(
+      el("td", {}, [
+        el("div", { text: a.label }),
+        a.outliers.length
+          ? el("div", {
+              class: "note",
+              text:
+                "Ausreißer ausgeschlossen: " +
+                a.outliers
+                  .map(
+                    (o) =>
+                      "#" +
+                      o.repetition +
+                      " (" +
+                      o.value +
+                      ", " +
+                      o.deviations +
+                      "σ)",
+                  )
+                  .join(", "),
+            })
+          : null,
+        // The spark line makes the repetition-to-repetition pattern visible:
+        // a drift across the set is a different problem from random scatter.
+        sparkline(a.values),
+      ]),
+    );
+    row.appendChild(el("td", { class: "val", text: String(a.n) }));
+    row.appendChild(
+      el("td", {}, [
+        el("div", { class: "val", text: num(a.mean, 2) + " " + a.unit }),
+        el("div", { class: "note", text: "Median " + num(a.median, 2) }),
+      ]),
+    );
+    row.appendChild(
+      el("td", {}, [
+        el("div", {
+          class: "val",
+          text: a.sd === null ? "—" : "± " + num(a.sd, 2) + " " + a.unit,
+        }),
+        a.cvPercent !== null
+          ? el("div", {
+              class: "note",
+              text: "VK " + num(a.cvPercent, 1) + " %",
+            })
+          : null,
+      ]),
+    );
+    row.appendChild(
+      el("td", {}, [
+        el("div", { class: "val", text: "± " + num(a.sem, 2) + " " + a.unit }),
+        a.systematicFloor > 0
+          ? el("div", {
+              class: "note",
+              text:
+                "davon " +
+                num(a.systematicFloor, 2) +
+                " systematisch — durch weitere Wiederholungen nicht zu verringern",
+            })
+          : null,
+      ]),
+    );
+    row.appendChild(
+      el(
+        "td",
+        {},
+        cmp
+          ? [
+              el("div", {
+                class: "val",
+                text: cmp.informative ? cmp.deviation : "nicht unterscheidbar",
+              }),
+              el("div", {
+                class: "note",
+                text:
+                  "Referenz " +
+                  num(cmp.bandMean, 2) +
+                  " ± " +
+                  num(cmp.combinedSd, 2) +
+                  (cmp.z !== null ? " · z = " + num(cmp.z, 2) : ""),
+              }),
+            ]
+          : [el("span", { class: "sub", text: "kein Referenzband" })],
+      ),
+    );
+    body.appendChild(row);
+  }
+  table.appendChild(body);
+  card.appendChild(table);
+  host.appendChild(card);
+
+  if (s.findings.length) {
+    const box = el("div", { class: "card" });
+    box.appendChild(
+      el("div", { class: "eyebrow", text: "Befunde über die Sitzung" }),
+    );
+    for (const f of s.findings) {
+      box.appendChild(
+        el("div", { class: "finding", style: "margin-top:12px" }, [
+          el("div", { class: "finding-head" }, [
+            el("h4", { text: firstSentence(f.observation) }),
+            el("span", {
+              class: "chip " + bandClass(f.confidence),
+              text: pct(f.confidence) + " % · " + f.confidenceLabel,
+            }),
+          ]),
+          el("div", { class: "note", text: f.recommendation }),
+        ]),
+      );
+    }
+    host.appendChild(box);
+  }
+}
+
+/** Tiny inline plot of the per-repetition values, in repetition order. */
+function sparkline(values) {
+  if (!values || values.length < 2) return null;
+  const w = 92;
+  const h = 20;
+  const lo = Math.min(...values);
+  const hi = Math.max(...values);
+  const span = hi - lo || 1;
+  const svg = svgEl("svg", {
+    viewBox: "0 0 " + w + " " + h,
+    width: w,
+    height: h,
+    style: "margin-top:5px",
+  });
+  let d = "";
+  values.forEach((v, i) => {
+    const x = (i / (values.length - 1)) * (w - 4) + 2;
+    const y = h - 3 - ((v - lo) / span) * (h - 6);
+    d += (d ? " L" : "M") + x.toFixed(1) + " " + y.toFixed(1);
+    svg.appendChild(
+      svgEl("circle", { cx: x, cy: y, r: 1.8, fill: "var(--clay)" }),
+    );
+  });
+  svg.insertBefore(
+    svgEl("path", {
+      d,
+      "fill": "none",
+      "stroke": "var(--clay)",
+      "stroke-width": 1,
+      "opacity": 0.6,
+    }),
+    svg.firstChild,
+  );
+  return svg;
+}
+
+/* ------------------------------------------------------------------ */
 /* History                                                             */
 /* ------------------------------------------------------------------ */
 
@@ -1416,6 +1651,7 @@ function render() {
   render3D();
   renderMetrics();
   renderFindings();
+  renderSession();
   renderHistory();
   renderCompare();
   renderPipeline();

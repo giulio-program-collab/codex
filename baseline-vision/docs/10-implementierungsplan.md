@@ -57,7 +57,7 @@ halbiert die Skalenunsicherheit und stabilisiert die Vertikale zusätzlich.
 | Spielerprofil (Verletzungen, Ziele, Stil)                    | offen              | 1 Woche               |
 | Export in den bestehenden Berichtsgenerator                  | offen              | 3–5 Tage              |
 
-**Mehrere Wiederholungen** sind wichtiger, als der Aufwand vermuten lässt. Die
+**Mehrere Wiederholungen** waren wichtiger, als der Aufwand vermuten ließ. Die
 Aufgabenstellung verlangt Mittelwert, Median, Streuung, Ausreißer und
 Konsistenz — und die Bildratenschwellen des Systems verlangen ohnehin drei bis
 fünf Wiederholungen, bevor eine Timing-Aussage zulässig ist. Ein einzelner
@@ -105,8 +105,9 @@ Wäre nur für drei Dinge Zeit:
 2. **Markerbasierte Referenzdaten erheben.** Ohne sie sind die Intervalle nicht
    kalibriert, und ohne kalibrierte Intervalle ist das ganze Confidence-System
    eine Behauptung.
-3. **Mehrere Wiederholungen je Sitzung.** Ohne sie bleibt die Timing-Analyse —
-   der biomechanisch wertvollste Teil — dauerhaft gesperrt.
+3. **Platzlinien-Kalibrierung.** Sie fixiert Brennweite, Bodenebene und
+   Zielrichtung in einem Schritt und ist die wirksamste Einzelmaßnahme, die ohne
+   neue Datenerhebung auskommt.
 
 Die Reihenfolge ist bewusst: Punkt 2 ist der langwierigste und sollte parallel zu
 Punkt 1 beginnen, weil er von Terminen mit Spielern und einem Labor abhängt.

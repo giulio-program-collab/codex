@@ -3,6 +3,7 @@ import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 
 import { analyse } from "../src/pipeline.ts";
+import { analyseSession, type SessionReport } from "../src/session.ts";
 import { buildScenario, GOOD_CAPTURE, PHONE_CAPTURE, type ScenarioOptions } from "../src/fixtures/scenarios.ts";
 import { SERVE_PRESETS } from "../src/fixtures/serve-model.ts";
 import { project } from "../src/core/camera.ts";
@@ -30,6 +31,8 @@ interface DemoCase {
   subtitle: string;
   options: ScenarioOptions;
   history?: HistoricalSample[];
+  /** When set, the case also carries a whole session of repetitions. */
+  session?: boolean;
 }
 
 /**
@@ -71,6 +74,7 @@ const CASES: DemoCase[] = [
     // Three earlier sessions of the same player, so the trend panel has
     // something real to work with.
     history: buildHistory(),
+    session: true,
   },
   {
     id: "handyaufnahme",
@@ -161,6 +165,46 @@ function buildHistory(): HistoricalSample[] {
 }
 
 
+/**
+ * Six serves from one session, with genuine stroke-to-stroke variation.
+ *
+ * This is what makes the timing analysis reachable at all: the system's own
+ * rule needs three repetitions at 240 Hz before an inter-segment lead may be
+ * compared with a population, and a single clip can never satisfy it.
+ */
+function buildSession(): SessionReport {
+  const base = SERVE_PRESETS.developing;
+  const scenarios = Array.from({ length: 6 }, (_, i) => {
+    const offset = ((i * 2654435761) % 1000) / 1000 - 0.5;
+    return buildScenario(`sess-${i}`, `Wiederholung ${i + 1}`, {
+      preset: {
+        ...base,
+        kneeFlexPeakDeg: base.kneeFlexPeakDeg + offset * 7,
+        separationPeakDeg: base.separationPeakDeg + offset * 4,
+        pelvisPeakLeadS: base.pelvisPeakLeadS + offset * 0.018,
+      },
+      level: "junior_development",
+      rig: "elevatedSide",
+      fps: 240,
+      ageYears: 13,
+      knownFieldOfView: true,
+      learnedDepth: true,
+      render: GOOD_CAPTURE,
+      seed: 20 + i * 13,
+      playerId: "nachwuchs",
+    });
+  });
+  return analyseSession(
+    {
+      player: scenarios[0].request.player,
+      stroke: "serve",
+      date: "2026-08-24",
+      repetitions: scenarios.map((s) => ({ request: s.request, depthPrior: s.depthPrior })),
+    },
+    { now: NOW },
+  );
+}
+
 /* ------------------------------------------------------------------ */
 /* Overlay geometry                                                    */
 /* ------------------------------------------------------------------ */
@@ -222,6 +266,46 @@ function buildOverlay(result: ReturnType<typeof analyse>, request: Parameters<ty
   });
 }
 
+/** Session payload for the dashboard: aggregates, comparisons and findings only. */
+function summariseSession(s: SessionReport) {
+  return {
+    date: s.date,
+    quality: s.quality,
+    repetitionCount: s.repetitions.length,
+    excluded: s.excluded,
+    timing: { allowed: s.timing.timingAllowed, required: s.timing.repetitionsRequired, reason: s.timing.reason },
+    notes: s.notes,
+    aggregates: s.aggregates.map((a) => ({
+      featureId: a.featureId,
+      label: a.label,
+      unit: a.unit,
+      n: a.n,
+      mean: round(a.mean, 4),
+      median: round(a.median, 4),
+      sd: a.sd === null ? null : round(a.sd, 4),
+      sem: round(a.sem, 4),
+      systematicFloor: round(a.systematicFloor, 4),
+      cvPercent: a.cvPercent === null ? null : round(a.cvPercent, 1),
+      confidence: round(a.confidence, 3),
+      values: a.values.map((v) => round(v, 4)),
+      outliers: a.outliers.map((o) => ({ ...o, value: round(o.value, 3), deviations: round(o.deviations, 1) })),
+    })),
+    comparisons: s.comparisons.map((c) => ({
+      featureId: c.featureId,
+      informative: c.informative,
+      deviation: c.deviation,
+      z: c.z === null ? null : round(c.z, 2),
+      combinedSd: round(c.combinedSd, 4),
+      bandMean: round(c.band.mean, 4),
+      bandSd: round(c.band.sd, 4),
+      cohortReasons: c.cohortReasons,
+    })),
+    findings: s.findings,
+  };
+}
+
+const round = (n: number, digits: number): number => Number(n.toFixed(digits));
+
 /** Bounding box of everything the overlay draws, padded, clipped to the frame. */
 function cropToAction(frames: OverlayFrame[], widthPx: number, heightPx: number): [number, number, number, number] {
   let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
@@ -270,6 +354,7 @@ const payload = {
       title: demo.title,
       subtitle: demo.subtitle,
       report: result.report,
+      session: demo.session ? summariseSession(buildSession()) : null,
       overlay,
       // The player occupies a small part of a 1920x1080 frame. Cropping the
       // overlay to what actually moved keeps the skeleton readable instead of

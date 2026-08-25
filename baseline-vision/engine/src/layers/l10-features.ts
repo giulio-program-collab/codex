@@ -30,6 +30,7 @@ import {
 } from "../core/types.ts";
 import { NOT_MEASURED } from "../core/types.ts";
 import { measureFrom, propagateSequenceClassified } from "../core/uncertainty.ts";
+import { MIN_TIMING_HZ, timingAdmissibility } from "./l01-ingest.ts";
 import type { SegmentationResult } from "./l09-segmentation.ts";
 import type { RacketResult } from "./l07-racket.ts";
 
@@ -79,6 +80,18 @@ export interface Feature {
    * zero and layer 13 turns it into a pipeline fault rather than a finding.
    */
   rejected?: { reason: string; range: [number, number] };
+  /**
+   * Set to false when the measurement is sound for *this* stroke but may not be
+   * compared against a reference distribution.
+   *
+   * The case that motivates it: a single serve at 120 Hz gives a pelvis-peak
+   * lead whose uncertainty is about the size of the elite/high-performance
+   * difference it would be scored against. The number is a real measurement of
+   * that one stroke and belongs in the report; scoring it against a population
+   * would be reading noise. Averaging over repetitions is what earns the
+   * comparison, and `analyseSession` is what supplies them.
+   */
+  referenceEligible?: boolean;
 }
 
 export interface FeatureResult {
@@ -102,6 +115,13 @@ export interface FeatureOptions {
   verticalConfidence: number;
   /** Common-mode relative scale uncertainty of the reconstruction, from layer 6. */
   scaleRelSd: number;
+  /** Scene sampling rate in Hz, for the timing-admissibility rule. */
+  effectiveHz: number;
+  /**
+   * How many repetitions of this stroke the session provides. One means a
+   * single clip; `analyseSession` passes the real count.
+   */
+  repetitions: number;
   /** Per-joint coverage after cleaning, from layer 5. */
   coverage: Partial<Record<Joint, number>>;
   /**
@@ -133,7 +153,7 @@ export interface FeatureOptions {
  * real players — a synthetic fixture cannot show a bias that comes from how
  * real pose estimators fail.
  */
-const METHOD_BIAS: Partial<Record<FeatureId, number>> = {
+export const METHOD_BIAS: Partial<Record<FeatureId, number>> = {
   kneeFlexionPeak: 3,
   trunkTiltAtTrophy: 3,
   hipShoulderSeparationPeak: 9,
@@ -151,6 +171,15 @@ const METHOD_BIAS: Partial<Record<FeatureId, number>> = {
   trunkPeakAngularVelocity: 40,
   contactAheadOfFrontFoot: 0.03,
 };
+
+/**
+ * The method's residual systematic error for a feature, in its own unit.
+ * Session aggregation needs it directly: it is the part of the uncertainty that
+ * averaging over repetitions cannot reduce.
+ */
+export function methodBiasFor(id: FeatureId): number {
+  return METHOD_BIAS[id] ?? 0;
+}
 
 const MC_SEQUENCE_SAMPLES = 48;
 
@@ -174,6 +203,17 @@ export function extractFeatures(poses: Pose3D[], opts: FeatureOptions): FeatureR
   const notes: string[] = [];
 
   const contact = seg.contactFrame;
+
+  // The timing rule, enforced rather than merely reported.
+  //
+  // Layer 1 already works out whether inter-segment timing is admissible at
+  // this sampling rate and repetition count, and an earlier version of this
+  // file ignored it: a single serve at 120 Hz produced a pelvis-peak lead as
+  // confidently as thirty of them would. That is precisely the shape of the
+  // defect this system exists to prevent — a rule stated in one layer and
+  // broken in another — so the gate is applied here, at the point where the
+  // numbers are made.
+  const timing = timingAdmissibility(opts.effectiveHz, opts.repetitions);
 
   /**
    * The contact instant, redrawn for each Monte-Carlo replica.
@@ -488,7 +528,28 @@ export function extractFeatures(poses: Pose3D[], opts: FeatureOptions): FeatureR
     );
   }
 
-  if (contact !== null) {
+  const TIMING_FEATURES: Array<[FeatureId, string]> = [
+    ["pelvisPeakLead", "Becken-Peak vor Treffpunkt"],
+    ["trunkPeakLead", "Rumpf-Peak vor Treffpunkt"],
+    ["sequenceMargin", "Abstand Becken-Peak zu Rumpf-Peak"],
+  ];
+
+  if (contact !== null && opts.effectiveHz < MIN_TIMING_HZ) {
+    // Below the frame-rate floor nothing is produced at all. At 30 fps a frame
+    // is 33 ms and the differences to be resolved are around 18 ms, so the
+    // measurement cannot even order the two events reliably. Producing a number
+    // here and marking it uncertain would still put it in front of a coach.
+    for (const [id, label] of TIMING_FEATURES) {
+      features.push({
+        id,
+        label,
+        phase: "Beschleunigung",
+        rationale:
+          "Die Reihenfolge und der zeitliche Abstand der Segment-Peaks sind der Kern der kinetischen Kette.",
+        measure: NOT_MEASURED("s", "unobservable", ["L1", "L10"], timing.reason as string),
+      });
+    }
+  } else if (contact !== null) {
     for (const [id, label, fn] of [
       ["pelvisPeakLead", "Becken-Peak vor Treffpunkt", pelvisYaw],
       ["trunkPeakLead", "Rumpf-Peak vor Treffpunkt", trunkYaw],
@@ -807,6 +868,20 @@ export function extractFeatures(poses: Pose3D[], opts: FeatureOptions): FeatureR
           "Die Bildrate reicht für eine Schlägerkopfgeschwindigkeit nicht aus.",
       ),
     });
+  }
+
+  // Above the frame-rate floor but short of the required repetitions, a timing
+  // value is a real measurement of *this* stroke and stays in the report — but
+  // it may not be scored against a population. Its uncertainty at one
+  // repetition is about the size of the elite/high-performance difference it
+  // would be compared with, so the comparison would be reading noise.
+  if (!timing.timingAllowed && opts.effectiveHz >= MIN_TIMING_HZ) {
+    for (const id of ["pelvisPeakLead", "trunkPeakLead", "sequenceMargin"] as FeatureId[]) {
+      const f = features.find((x) => x.id === id);
+      if (!f || f.measure.value === null) continue;
+      f.referenceEligible = false;
+      f.measure.notes.push(timing.reason as string);
+    }
   }
 
   const byId: Partial<Record<FeatureId, Feature>> = {};

@@ -69,6 +69,14 @@ Schranke** — sie müssen vor jedem Produktiveinsatz gegen markerbasierte
 Referenzdaten an echten Spielern neu bestimmt werden. Eine synthetische Fixture
 kann keinen Bias zeigen, der daher rührt, wie echte Pose-Estimatoren versagen.
 
+### Was Mitteln kann und was nicht
+
+Über mehrere Wiederholungen schrumpft der zufällige Anteil mit 1/√n, der
+systematische überhaupt nicht. Die Genauigkeit eines Sitzungsmittelwerts ist
+deshalb nach unten durch `METHOD_BIAS` begrenzt, und das Dashboard schreibt diese
+Untergrenze ausdrücklich hin. Ausführlich in
+[12 Sitzung und Verlauf](12-sitzung-und-verlauf.md).
+
 ## Confidence ist nicht Streuung
 
 ```

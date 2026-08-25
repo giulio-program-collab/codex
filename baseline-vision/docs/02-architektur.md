@@ -22,6 +22,8 @@ Video
   ↓ L12 Confidence-Aggregation            Analysequalität, Bewertungs-Gate
   ↓ L13 Interpretation                    Plausibilität, Befunde, Urteil
   ↓ L14 Report                            Trainer-Modell
+       ↓
+  Sitzung (analyseSession)                Mittelwert, Konstanz, Ausreißer
 Trainer-Dashboard
 ```
 

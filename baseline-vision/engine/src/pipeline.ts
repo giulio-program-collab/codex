@@ -50,6 +50,14 @@ export interface PipelineOptions {
   depthPrior?: DepthPrior;
   /** Fixed timestamp, so reports are byte-identical in tests. */
   now?: string;
+  /**
+   * How many repetitions of this stroke the session contains.
+   *
+   * Defaults to one. `analyseSession` passes the real count, which is what
+   * makes inter-segment timing admissible for a reference comparison — see
+   * `timingAdmissibility` in layer 1.
+   */
+  repetitions?: number;
 }
 
 export interface PipelineResult {
@@ -156,6 +164,8 @@ export function analyse(request: AnalysisRequest, options: PipelineOptions = {})
     targetDirConfidence: lift.targetDirConfidence,
     verticalConfidence: lift.verticalConfidence,
     scaleRelSd: lift.scaleRelSd,
+    effectiveHz: ing.effectiveHz,
+    repetitions: options.repetitions ?? 1,
     coverage: tracked.coverage,
     // The weakest of the layers a measurement depends on, not their average:
     // a perfect pose estimate on top of a broken reconstruction is still a
@@ -171,6 +181,10 @@ export function analyse(request: AnalysisRequest, options: PipelineOptions = {})
   for (const band of bands) {
     const feature = features.byId[band.featureId];
     if (!feature) continue;
+    // A feature the measurement rules bar from comparison is skipped here, not
+    // compared and then discounted: a z-score that must not be read is still
+    // read by somebody.
+    if (feature.referenceEligible === false) continue;
     comparisons.push(compareToReference(feature, band, request.player));
   }
   const selfComparisons: SelfComparison[] = [];
