@@ -193,6 +193,18 @@ export const ROTATION_CUTOFF_HZ = 8;
 /** The four joints every rotation metric reads. */
 const GIRDLE_JOINTS: readonly Joint[] = ["hipL", "hipR", "shoulderL", "shoulderR"];
 
+/**
+ * Mirror confidence at or above which the depth direction counts as resolved.
+ *
+ * Below it, the reconstruction is only weakly constrained out of the image
+ * plane — and a measurement that leans on the depth direction is then a guess
+ * with a plausible interval around it, which is the most dangerous thing this
+ * system can produce. The geometric solve on its own reports about 0.35 here,
+ * a learned depth prior lifts it to about 0.9, and the gap between those two is
+ * exactly the gap between a number that can be quoted and one that cannot.
+ */
+export const MIRROR_RESOLVED = 0.7;
+
 export function extractFeatures(poses: Pose3D[], opts: FeatureOptions): FeatureResult {
   const rng = new Rng(opts.seed ?? 1312);
   const seg = opts.segmentation;
@@ -309,6 +321,28 @@ export function extractFeatures(poses: Pose3D[], opts: FeatureOptions): FeatureR
           "Tiefenrichtung bestimmt — aus dieser Kameraperspektive nur eingeschränkt bestimmbar.",
       );
     }
+
+    // How far this measurement leans on a depth direction that may not be
+    // resolved at all.
+    //
+    // `depthRatio` says how much of the metric's uncertainty comes from the
+    // depth axis; `mirrorConfidence` says whether the reconstruction knows
+    // which way that axis runs. Neither alone is enough. A vertical distance
+    // survives an unresolved depth direction; a joint angle does not, and
+    // without this gate it is reported at full confidence with an interval
+    // that reflects only the pixel noise — the exact failure this system was
+    // built to remove, reappearing one layer further in.
+    const depthDirectionTrust = clamp(opts.mirrorConfidence / MIRROR_RESOLVED, 0, 1);
+    const depthDependence = depthRatio === null ? 0 : clamp((depthRatio - 1.25) / 1.25, 0, 1);
+    const chirality = 1 - depthDependence * (1 - depthDirectionTrust);
+    if (chirality < 0.999) {
+      extra.push(
+        "Die Tiefenrichtung der Rekonstruktion ist nicht gesichert " +
+          `(${Math.round(opts.mirrorConfidence * 100)} %). Da diese Größe von ihr abhängt, ` +
+          "ist der Wert entsprechend abgewertet — ein gelernter Tiefen-Prior oder eine " +
+          "kalibrierte zweite Kamera hebt ihn wieder an.",
+      );
+    }
     // The reconstruction's overall scale error is common to every joint, so it
     // cancels in angles and in ratios taken against the player's own
     // dimensions, and acts in full on absolute lengths. Adding it per joint
@@ -335,7 +369,11 @@ export function extractFeatures(poses: Pose3D[], opts: FeatureOptions): FeatureR
       unit,
       observability,
       provenance: ["L6", "L9", "L10"],
-      trust: [...trust, { label: "Güte der Rekonstruktion", value: opts.upstreamQuality }],
+      trust: [
+        ...trust,
+        { label: "Güte der Rekonstruktion", value: opts.upstreamQuality },
+        { label: "Eindeutigkeit der Tiefenrichtung", value: chirality },
+      ],
       notes: [
         ...extra,
         ...(unit === "m"

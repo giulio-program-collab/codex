@@ -148,6 +148,7 @@ export function analyse(request: AnalysisRequest, options: PipelineOptions = {})
     ballContactConfidence: ball.contactConfidence,
     ballImage: ball.track.map((t) => t.p),
     racketImage: tracked.frames.map((f) => f.racket?.head ?? null),
+    manualContactFrame: request.hints?.contactFrame ?? null,
   });
   layers.push(seg.report);
 

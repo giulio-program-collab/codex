@@ -139,7 +139,29 @@ export interface SegmentationOptions {
   ballImage?: Array<{ x: number; y: number } | null>;
   /** Racket-head position in the image, per frame. */
   racketImage?: Array<{ x: number; y: number } | null>;
+  /**
+   * Contact frame marked by a person, if one was.
+   *
+   * Without a racket or ball detector there is no automatic cue for the one
+   * instant every timing measurement is referenced to, and the clip is
+   * unanalysable. A coach can see that instant perfectly well. The mark enters
+   * as one cue among the others rather than as an override: it is checked
+   * against whatever the pose itself suggests, and a mark that disagrees with
+   * every automatic cue shows up as a wide contact uncertainty instead of
+   * silently moving the reference point.
+   */
+  manualContactFrame?: number | null;
 }
+
+/**
+ * Weight of a hand-marked contact frame.
+ *
+ * High, because a person watching the clip frame by frame is genuinely good at
+ * this — but below 1, because the mark is limited by the frame rate and by how
+ * carefully it was placed, and because it must not be able to outvote three
+ * agreeing automatic cues on its own.
+ */
+export const MANUAL_CONTACT_WEIGHT = 0.8;
 
 export function segment(poses: Pose3D[], opts: SegmentationOptions): SegmentationResult {
   const n = poses.length;
@@ -234,14 +256,21 @@ export function segment(poses: Pose3D[], opts: SegmentationOptions): Segmentatio
     }
   }
 
+  const manualCue =
+    opts.manualContactFrame !== null && opts.manualContactFrame !== undefined && opts.manualContactFrame >= 0
+      ? opts.manualContactFrame
+      : null;
+
   const anchor =
     ballCue !== null && opts.ballContactConfidence > 0.4
       ? ballCue
       : proximityFrame !== null && proximityQuality > 0.4
         ? proximityFrame
-        : racketApex
-          ? racketApex.index
-          : null;
+        : manualCue !== null
+          ? manualCue
+          : racketApex
+            ? racketApex.index
+            : null;
 
   const windowFrames = Math.max(4, Math.round(0.16 / opts.dtScene));
   const localPeak = (xs: number[], sign: 1 | -1): number | null => {
@@ -253,6 +282,7 @@ export function segment(poses: Pose3D[], opts: SegmentationOptions): Segmentatio
     return pk ? pk.index + lo : null;
   };
 
+  cues.push({ id: "Von Hand markiert", frame: manualCue, weight: manualCue === null ? 0 : MANUAL_CONTACT_WEIGHT });
   cues.push({ id: "Ball: Geschwindigkeitssprung", frame: ballCue, weight: opts.ballContactConfidence });
   cues.push({ id: "Ball am Schlägerkopf", frame: proximityFrame, weight: proximityQuality });
   cues.push({
@@ -261,17 +291,28 @@ export function segment(poses: Pose3D[], opts: SegmentationOptions): Segmentatio
     weight: opts.stroke === "serve" && racketZ.filter((v) => v !== null).length > n * 0.5 ? 0.55 : 0.1,
   });
 
+  // Arm extension, measured to the racket head where the racket is tracked and
+  // to the wrist where it is not. The wrist version is the weaker cue — the
+  // racket keeps extending after the wrist stops — but it needs nothing beyond
+  // the pose, which is all a markerless clip supplies.
+  let reachSource = "Schlägerkopf";
   const handToShoulder = poses.map((p, i) => {
     const sh = p[sided("shoulder", side)];
     const head = opts.racket[i]?.head;
-    if (!sh || !head) return null;
-    return norm3(sub3(head, sh.p));
+    if (!sh) return null;
+    if (head) return norm3(sub3(head, sh.p));
+    const wrist = p[sided("wrist", side)];
+    if (!wrist) return null;
+    reachSource = "Handgelenk";
+    return norm3(sub3(wrist.p, sh.p));
   });
+  const racketTracked = opts.racket.filter((r) => r.head).length > n * 0.5;
   const reachFrame = localPeak(filled(handToShoulder), 1);
   cues.push({
-    id: "Maximale Armstreckung",
+    id: `Maximale Armstreckung (${reachSource})`,
     frame: reachFrame,
-    weight: handToShoulder.filter((v) => v !== null).length > n * 0.5 ? 0.6 : 0.15,
+    weight:
+      handToShoulder.filter((v) => v !== null).length > n * 0.5 ? (racketTracked ? 0.6 : 0.4) : 0.15,
   });
 
   const racketSpeed = opts.racket.map((r) => r.headSpeedMs);
@@ -342,7 +383,10 @@ export function segment(poses: Pose3D[], opts: SegmentationOptions): Segmentatio
       );
     }
   } else {
-    notes.push("Kein Treffpunkt bestimmbar: weder Ball noch Schläger liefern ein auswertbares Signal.");
+    notes.push(
+      "Kein Treffpunkt bestimmbar: weder Ball noch Schläger liefern ein auswertbares Signal. " +
+        "Ohne Treffpunkt ist keine der zeitbezogenen Größen messbar — er kann von Hand markiert werden.",
+    );
   }
 
   // --- Events -----------------------------------------------------------

@@ -279,6 +279,15 @@ export interface AnalysisRequest {
     cameraPlacement?: CameraPlacement;
     /** Image-space court line correspondences, if the court is visible. */
     courtPoints?: Array<{ image: Vec2; world: Vec3 }>;
+    /**
+     * Frame index of the ball-racket contact, marked by a person.
+     *
+     * Needed for footage with no racket or ball detection: the contact instant
+     * is the reference point for every timing measurement, and nothing in a
+     * bare pose track marks it reliably. Supplying it is one click per clip;
+     * the segmentation treats it as evidence, not as an override.
+     */
+    contactFrame?: number;
   };
   /** Deterministic seed; the same request always yields the same report. */
   seed?: number;
