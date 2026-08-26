@@ -226,7 +226,7 @@
     await new Promise((resolve) => {
       const step = (_now, metadata) => {
         times.push(metadata.mediaTime);
-        if (times.length >= 12) {
+        if (times.length >= 60) {
           video.pause();
           resolve();
           return;
@@ -236,8 +236,12 @@
       video.currentTime = 0;
       video.requestVideoFrameCallback(step);
       video.play().catch(() => resolve());
-      setTimeout(resolve, 4000);
+      setTimeout(() => {
+        video.pause();
+        resolve();
+      }, 5000);
     });
+
     const deltas = [];
     for (let i = 1; i < times.length; i++) {
       const d = times[i] - times[i - 1];
@@ -245,7 +249,21 @@
     }
     if (!deltas.length) return 30;
     deltas.sort((a, b) => a - b);
-    return Math.round(1 / deltas[Math.floor(deltas.length / 2)]);
+
+    // The *smallest* interval between painted frames, not the typical one.
+    //
+    // A player that cannot keep up drops frames, and a dropped frame doubles or
+    // triples the gap in media time. Taking the median of those gaps measures
+    // how busy the machine was; taking the low end measures the video. On a
+    // 55 fps clip the difference was 20 fps against 55 — and the frame rate is
+    // what every timing measurement is divided by.
+    const low = deltas[Math.max(0, Math.floor(deltas.length * 0.1))];
+    const measured = 1 / low;
+    // Clips are authored at a handful of rates; snapping to the nearest of them
+    // removes the last of the jitter, but only when it is genuinely near one.
+    const COMMON = [24, 25, 30, 50, 55, 60, 100, 120, 240];
+    const near = COMMON.find((rate) => Math.abs(rate - measured) / rate < 0.04);
+    return near ?? Math.round(measured);
   }
 
   const seekTo = (video, time) =>
@@ -308,6 +326,7 @@
       const flip = $("v-flipdepth").checked ? -1 : 1;
       const frames = [];
       const thumbnails = [];
+      const signatures = [];
       let found = 0;
       const startedAt = Date.now();
 
@@ -349,7 +368,9 @@
         frames.push(frame);
 
         thumbCtx.drawImage(video, 0, 0, thumb.width, thumb.height);
-        thumbnails.push(thumbCtx.getImageData(0, 0, thumb.width, thumb.height));
+        const image = thumbCtx.getImageData(0, 0, thumb.width, thumb.height);
+        thumbnails.push(image);
+        signatures.push(signature(image));
 
         if (i % 5 === 0) {
           const perFrame = (Date.now() - startedAt) / Math.max(1, i + 1);
@@ -362,8 +383,39 @@
         }
       }
 
-      state.frames = frames;
-      state.thumbnails = thumbnails;
+      // How many of these frames carry new image content?
+      //
+      // A screen recording of a slowed replay holds every source frame for
+      // several screen frames. The file then claims 55 fps while the motion
+      // advances 14 times a second, and every velocity computed from it is
+      // wrong by the ratio — three frames out of four say the player did not
+      // move at all. Keeping the duplicates would be worse than useless, so
+      // they are dropped and the rate is corrected to the one that is real.
+      const distinct = [frames[0]];
+      const distinctThumbs = [thumbnails[0]];
+      for (let i = 1; i < frames.length; i++) {
+        if (pictureChanged(signatures[i - 1], signatures[i])) {
+          distinct.push(frames[i]);
+          distinctThumbs.push(thumbnails[i]);
+        }
+      }
+      const duplicateFraction = 1 - distinct.length / Math.max(1, frames.length);
+      state.duplicateFraction = duplicateFraction;
+      if (duplicateFraction > 0.15) {
+        const effective = state.fps * (distinct.length / frames.length);
+        state.effectiveFps = effective;
+        // Timestamps are rebuilt on the distinct rate, so the analysis measures
+        // the motion rather than the repetition.
+        distinct.forEach((frame, index) => {
+          frame.t = Math.round((index / effective) * 1e6) / 1e6;
+        });
+        state.frames = distinct;
+        state.thumbnails = distinctThumbs;
+        state.fps = Math.round(effective * 100) / 100;
+      } else {
+        state.frames = frames;
+        state.thumbnails = thumbnails;
+      }
 
       if (!found) {
         window.Playground.fail(
@@ -376,9 +428,17 @@
       }
 
       status(
-        `${frames.length} Bilder bei ${state.fps} fps, in ${Math.round((found / frames.length) * 100)} % ` +
-          "eine Person erkannt. Jetzt den Treffpunkt markieren.",
+        `${state.frames.length} Bilder bei ${state.fps} fps, in ` +
+          `${Math.round((found / frames.length) * 100)} % eine Person erkannt.` +
+          (duplicateFraction > 0.15
+            ? ` ${Math.round(duplicateFraction * 100)} % der Bilder waren Wiederholungen des ` +
+              "vorigen — die Aufnahme läuft in Zeitlupe oder wurde von einem Bildschirm abgefilmt. " +
+              "Gerechnet wird mit der tatsächlichen Bildfolge."
+            : "") +
+          " Jetzt den Treffpunkt markieren.",
       );
+      $("v-fps").value = String(state.fps);
+      $("v-fps-row").hidden = false;
       openMarker();
     } catch (err) {
       window.Playground.fail("Die Posenerkennung ist gescheitert: " + String((err && err.message) || err));
@@ -386,6 +446,40 @@
     } finally {
       button.disabled = false;
     }
+  }
+
+  /**
+   * Did the pose change between two frames?
+   *
+   * Comparing the estimated joints rather than the pixels is deliberate: the
+   * estimator is deterministic, so an identical image yields identical
+   * landmarks to the last decimal, while a genuinely new image moves at least
+   * some of them. Crowd movement in the background cannot fool it.
+   */
+  function pictureChanged(a, b) {
+    if (!a || !b) return true;
+    let sum = 0;
+    for (let i = 0; i < a.length; i++) sum += Math.abs(a[i] - b[i]);
+    // Two decodes of the same source frame are bit-identical; anything the
+    // player actually did moves several of these cells by more than noise.
+    return sum / a.length > 0.6;
+  }
+
+  /** A 24×24 luma thumbprint of a frame, for the duplicate test. */
+  function signature(image) {
+    const cells = 24;
+    const out = new Float32Array(cells * cells);
+    const stepX = image.width / cells;
+    const stepY = image.height / cells;
+    for (let cy = 0; cy < cells; cy++) {
+      for (let cx = 0; cx < cells; cx++) {
+        const x = Math.min(image.width - 1, Math.floor((cx + 0.5) * stepX));
+        const y = Math.min(image.height - 1, Math.floor((cy + 0.5) * stepY));
+        const i = (y * image.width + x) * 4;
+        out[cy * cells + cx] = 0.299 * image.data[i] + 0.587 * image.data[i + 1] + 0.114 * image.data[i + 2];
+      }
+    }
+    return out;
   }
 
   /* ---------------------------------------------------------------- */
@@ -452,6 +546,16 @@
   /* ---------------------------------------------------------------- */
 
   function buildClip() {
+    const corrected = Number($("v-fps").value);
+    if (corrected > 0 && Math.abs(corrected - state.fps) > 0.01) {
+      // The reader knows the file; the measurement is only a fallback.
+      state.frames.forEach((frame, index) => {
+        frame.t = Math.round((index / corrected) * 1e6) / 1e6;
+      });
+      state.fps = corrected;
+    }
+    // Without an entry, the capture rate is the rate at which the picture
+    // actually changes — not the rate the container claims.
     const captureFps = Number($("v-capture").value) || state.fps;
     const hfov = Number($("v-hfov").value);
     const clip = {

@@ -1321,6 +1321,15 @@
           Erkennung.
         </p>
 
+        <div id="v-fps-row" hidden>
+          <label class="name" for="v-fps">Gemessene Bildrate (fps)</label>
+          <input type="number" id="v-fps" min="1" max="1000" step="0.001" />
+          <p class="hint">
+            Aus dem Abspielen gemessen. Stimmt sie nicht mit der Datei überein, hier korrigieren — jede
+            Zeitmessung wird durch diesen Wert geteilt.
+          </p>
+        </div>
+
         <label class="name" for="v-hfov">Bildwinkel (Grad, optional)</label>
         <input type="number" id="v-hfov" min="20" max="120" step="1" placeholder="unbekannt" />
 
@@ -9359,6 +9368,7 @@ __defs["src/io/clip.ts"] = function (exports, require, module) {
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.DEFAULT_DEPTH_SIGMA_M = exports.MIN_KEYPOINT_SCORE = exports.KEYPOINT_LAYOUTS = exports.CLIP_VERSION = exports.CLIP_FORMAT = void 0;
 exports.parseClip = parseClip;
+exports.reconcileTrunkConvention = reconcileTrunkConvention;
 exports.serialiseClip = serialiseClip;
 const camera_ts_1 = require("../core/camera.ts");
 const math_ts_1 = require("../core/math.ts");
@@ -9634,6 +9644,11 @@ function parseClip(input, options = {}) {
             "und der Bericht wird keine Winkel zitieren. Abhilfe: ein monokulares 3D-Modell " +
             "(MotionBERT, VideoPose3D) über dieselben Bilder laufen lassen und dessen z-Werte mitgeben.");
     }
+    // A clip declaring the native layout already uses this skeleton's joint
+    // definitions; there is nothing to reconcile, and touching it would corrupt a
+    // known-good pose.
+    if (clip.keypointLayout !== "native")
+        reconcileTrunkConvention(request, warnings);
     const depthPrior = hasDepth ? buildDepthPrior(clip, layout, request, options, warnings, kept) : undefined;
     return { request, depthPrior, warnings };
 }
@@ -9641,6 +9656,70 @@ const clampScore = (s) => (Number.isFinite(s) ? Math.max(0, Math.min(1, s)) : 0.
 /* ------------------------------------------------------------------ */
 /* Depth                                                              */
 /* ------------------------------------------------------------------ */
+/**
+ * Reconciles the estimator's landmark convention with this skeleton.
+ *
+ * Every pose estimator places its shoulder and hip points somewhere defensible
+ * and slightly different: MediaPipe's shoulders sit at the acromion and its
+ * hips at the middle of the pelvis, which makes the trunk about a fifth longer
+ * than the shoulder-joint-to-hip-joint distance the anthropometric table means.
+ * Measured on a real clip, the limbs agreed to within three centimetres while
+ * the trunk read 62 cm against 53 — and the reconstruction then rejected a
+ * third of all segments as anatomically impossible, which they were not.
+ *
+ * The correction is measured on the clip rather than tabulated: take the median
+ * ratio of the observed trunk to the observed thigh, compare it with the ratio
+ * the table expects, and move the shoulders and hips toward each other along
+ * the trunk axis by the difference. Limb lengths are left untouched, and a clip
+ * whose convention already matches is not changed at all.
+ */
+function reconcileTrunkConvention(request, warnings) {
+    const trunkOverThigh = EXPECTED_TRUNK_FRACTION / EXPECTED_THIGH_FRACTION;
+    const observed = [];
+    for (const frame of request.frames) {
+        const trunk = segmentPx(frame, "shoulderR", "hipR") ?? segmentPx(frame, "shoulderL", "hipL");
+        const thigh = segmentPx(frame, "hipR", "kneeR") ?? segmentPx(frame, "hipL", "kneeL");
+        if (trunk && thigh && thigh > 8)
+            observed.push(trunk / thigh);
+    }
+    const ratio = (0, math_ts_1.median)(observed);
+    if (ratio === null || !Number.isFinite(ratio) || ratio <= 0)
+        return;
+    const excess = ratio / trunkOverThigh - 1;
+    if (Math.abs(excess) < 0.05)
+        return;
+    // Half the excess comes off each end, along the trunk axis of that frame.
+    const shift = excess / 2;
+    for (const frame of request.frames) {
+        for (const side of ["L", "R"]) {
+            const shoulder = frame.pose2d[`shoulder${side}`];
+            const hip = frame.pose2d[`hip${side}`];
+            if (!shoulder || !hip)
+                continue;
+            const dx = hip.p.x - shoulder.p.x;
+            const dy = hip.p.y - shoulder.p.y;
+            shoulder.p = { x: shoulder.p.x + dx * shift, y: shoulder.p.y + dy * shift };
+            hip.p = { x: hip.p.x - dx * shift, y: hip.p.y - dy * shift };
+        }
+        // The derived trunk points are rebuilt from the corrected ends.
+        for (const derived of ["pelvis", "sternum", "neck", "spine", "thorax"]) {
+            delete frame.pose2d[derived];
+        }
+    }
+    warnings.push(`Die Rumpflänge des Keypoint-Satzes wich um ${Math.round(excess * 100)} % von der anatomischen ` +
+        "Erwartung ab — Schulter- und Hüftpunkte des Modells liegen nicht auf den Gelenkzentren. " +
+        "Sie wurden entlang der Rumpfachse angeglichen; die Gliedmaßen bleiben unverändert.");
+}
+/** Winter's stature fractions for the two segments the reconciliation uses. */
+const EXPECTED_TRUNK_FRACTION = 0.288;
+const EXPECTED_THIGH_FRACTION = 0.245;
+function segmentPx(frame, a, b) {
+    const pa = frame.pose2d[a];
+    const pb = frame.pose2d[b];
+    if (!pa || !pb)
+        return null;
+    return Math.hypot(pa.p.x - pb.p.x, pa.p.y - pb.p.y);
+}
 /**
  * Turns a lifter's depth track into the prior layer 6 consumes.
  *
