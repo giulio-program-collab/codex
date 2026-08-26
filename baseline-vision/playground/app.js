@@ -1476,6 +1476,30 @@
 
   /* ---------------------------------------------------------------- */
 
+  /* ---------------------------------------------------------------- */
+  /* API for the video app                                             */
+  /* ---------------------------------------------------------------- */
+
+  /**
+   * The video page adds a pose estimator in front of this one and hands the
+   * clip over here, so that both routes — a file someone exported and a video
+   * the browser just read — end in exactly the same analysis and the same
+   * report.
+   */
+  window.Playground = {
+    acceptClip(clip, name, meta) {
+      state.clip = clip;
+      state.clipName = name;
+      $("clipname").textContent = name;
+      $("clipdepth").textContent = meta || (clip.frames ? clip.frames.length + " Bilder" : "");
+      $("clipbadge").dataset.active = "true";
+      $("synthetic").disabled = true;
+      runAnalysis();
+    },
+    fail,
+    setBusy,
+  };
+
   buildControls();
   runAnalysis();
 })();

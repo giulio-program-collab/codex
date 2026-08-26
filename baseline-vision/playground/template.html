@@ -1250,6 +1250,63 @@
 
 <div class="shell">
   <form class="rail" id="controls" autocomplete="off">
+    <div class="field" id="video-block" hidden>
+      <span class="name">Video auswerten</span>
+      <label class="dropzone" id="videozone">
+        Videodatei hier ablegen oder klicken
+        <input type="file" id="videofile" accept="video/*" />
+      </label>
+      <div class="clipbadge" id="videobadge">
+        <b id="videoname"></b>
+        <span id="videometa"></span>
+      </div>
+
+      <div class="field" id="video-settings" hidden>
+        <label class="name" for="v-height">Körpergröße (cm)</label>
+        <input type="number" id="v-height" min="120" max="220" step="1" value="185" />
+
+        <label class="name" for="v-hand">Schlaghand</label>
+        <select id="v-hand">
+          <option value="right">rechts</option>
+          <option value="left">links</option>
+        </select>
+
+        <label class="name" for="v-level">Niveau</label>
+        <select id="v-level">
+          <option value="junior_development">Nachwuchs</option>
+          <option value="junior_national">Nachwuchs national</option>
+          <option value="college">College</option>
+          <option value="high_performance" selected>Leistungsklasse</option>
+          <option value="elite">Weltklasse</option>
+        </select>
+
+        <label class="name" for="v-hfov">Bildwinkel (Grad, optional)</label>
+        <input type="number" id="v-hfov" min="20" max="120" step="1" placeholder="unbekannt" />
+
+        <label class="name" for="v-capture">Aufnahmerate (fps, bei Zeitlupe)</label>
+        <input type="number" id="v-capture" min="24" max="1000" step="1" placeholder="wie Datei" />
+
+        <label class="name" for="v-model">Modell</label>
+        <select id="v-model">
+          <option value="pose_landmarker_full.task" selected>genau (9 MB)</option>
+          <option value="pose_landmarker_lite.task">schnell (5,5 MB)</option>
+        </select>
+
+        <label class="switch" style="margin-top: 0.4rem">
+          <input type="checkbox" id="v-flipdepth" />
+          <span class="text"
+            >Tiefenrichtung umkehren
+            <small>Nur nötig, wenn „Tiefenrichtung gesichert“ niedrig bleibt.</small></span
+          >
+        </label>
+
+        <button type="button" class="play" id="v-extract" style="margin-top: 0.6rem; width: 100%">
+          Posen erkennen
+        </button>
+        <p class="hint" id="v-status"></p>
+      </div>
+    </div>
+
     <div class="field">
       <span class="name">Eigenes Video</span>
       <label class="dropzone" id="dropzone">
@@ -1257,9 +1314,14 @@
         <input type="file" id="clipfile" />
       </label>
       <p class="hint">
-        Erwartet wird eine <b>JSON-Datei</b> mit Gelenkpunkten, nicht das Video selbst — erzeugt von
-        <code style="font-family: var(--data); font-size: 0.72rem">tools/extract-pose.py</code>. Der
-        Prüfstand rechnet dann auf Ihren Bildern statt auf der Simulation.
+        Erwartet wird eine <b>JSON-Datei</b> mit Gelenkpunkten, nicht das Video selbst. Um ein Video
+        direkt hineinzuziehen, starten Sie den Prüfstand lokal:
+        <code style="font-family: var(--data); font-size: 0.72rem"
+          >node --experimental-strip-types tools/fetch-models.ts</code
+        >, dann
+        <code style="font-family: var(--data); font-size: 0.72rem"
+          >tools/serve.ts</code
+        >. Die Posenschätzung ist 24 MB Modell und WebAssembly und passt nicht in diese Seite.
       </p>
       <div class="clipbadge" id="clipbadge">
         <b id="clipname"></b>
@@ -1357,6 +1419,30 @@
             <div id="quality-rows"></div>
             <div id="quality-blockers"></div>
           </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="panel" id="mark-panel" hidden>
+      <header><h2>Treffpunkt markieren</h2><span class="aside" id="mark-aside"></span></header>
+      <div class="body">
+        <p class="prose">
+          Der Treffpunkt ist der Bezugspunkt jeder Zeitmessung, und kein Posen-Modell sieht ihn. Spulen
+          Sie auf das Bild, in dem der Ball die Saiten berührt, und setzen Sie die Marke.
+        </p>
+        <div class="stage" style="width: 100%">
+          <canvas id="mark-canvas" width="640" height="360"></canvas>
+        </div>
+        <div class="transport">
+          <button type="button" class="play" id="mark-prev">◀ Bild</button>
+          <input type="range" id="mark-frame" min="0" max="0" step="1" value="0" />
+          <button type="button" class="play" id="mark-next">Bild ▶</button>
+          <span class="frames" id="mark-label">–</span>
+        </div>
+        <div class="transport">
+          <button type="button" class="play" id="mark-set">Treffpunkt hier setzen</button>
+          <button type="button" class="play" id="mark-run">Auswerten</button>
+          <span class="frames" id="mark-current">kein Treffpunkt gesetzt</span>
         </div>
       </div>
     </section>

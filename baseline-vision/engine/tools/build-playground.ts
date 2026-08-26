@@ -33,6 +33,12 @@ const app = readFileSync(join(playgroundDir, "app.js"), "utf8");
 
 const fragment = template.replace("<!--ENGINE-->", engine).replace("<!--APP-->", app);
 
+// The video page is the same page with a pose estimator in front of it. It is
+// built separately because that estimator is fifteen megabytes of model and
+// WebAssembly served from `playground/vendor/`, which only exists once
+// `tools/fetch-models.ts` has run and which no single-file build could carry.
+const videoApp = readFileSync(join(playgroundDir, "video-app.js"), "utf8");
+
 const document = `<!doctype html>
 <html lang="de">
 <head>
@@ -46,10 +52,28 @@ ${fragment.slice(fragment.indexOf("</style>") + "</style>".length)}
 </html>
 `;
 
+const videoFragment = fragment.replace(
+  "</body>",
+  `<script type="module">
+${videoApp}
+</script>
+</body>`,
+);
+const videoDocument = document.replace(
+  "</body>",
+  `<script type="module">
+${videoApp}
+</script>
+</body>`,
+);
+
 writeFileSync(join(playgroundDir, "index.html"), document);
 writeFileSync(join(playgroundDir, "artifact.html"), fragment);
+writeFileSync(join(playgroundDir, "video.html"), videoDocument);
+void videoFragment;
 
 const kb = (s: string) => (s.length / 1024).toFixed(0);
 console.log(`engine bundle  ${kb(engine)} kB`);
 console.log(`index.html     ${kb(document)} kB`);
 console.log(`artifact.html  ${kb(fragment)} kB`);
+console.log(`video.html     ${kb(videoDocument)} kB`);

@@ -1,27 +1,53 @@
 # 13 · Eigene Videos auswerten
 
-Die Messkette beginnt nicht bei Pixeln. Sie beginnt bei 2D-Gelenkpunkten pro
-Bild, jeweils mit dem Score des Detektors. Der Pose-Estimator selbst ist
-absichtlich nicht Teil dieses Repositories: Er ist ein großes Modell mit eigenem
-Release-Zyklus, und ihn in die Messkette einzubauen würde die Kette
-untestbar machen. Was hineingeht, ist eine Datei.
+## Der kurze Weg: Video hineinziehen
 
-## Was die Pipeline braucht
+```bash
+cd engine
+node --experimental-strip-types tools/fetch-models.ts   # einmalig, ca. 24 MB
+node --experimental-strip-types tools/serve.ts
+```
 
-| Bestandteil | Pflicht | Ohne ihn |
-| --- | --- | --- |
-| 2D-Gelenke pro Bild, mit Score | ja | nichts geht |
-| Körpergröße des Spielers | ja | kein Maßstab, keine Längenangabe |
-| Treffpunkt (Bildnummer) | faktisch ja | Segmentierung scheitert, fast alle Kenngrößen entfallen |
-| Tiefenspur eines 3D-Modells | faktisch ja | die Tiefenrichtung bleibt ungelöst, **kein Winkel wird zitiert** |
-| Brennweite / Bildwinkel | nein | jede Längenangabe wird unsicherer |
-| Aufnahmerate bei Zeitlupe | nein | Zeitmessungen bleiben gesperrt |
-| Schläger- und Balltrack | nein | Schlägergeschwindigkeit entfällt, sonst nichts |
+Dann `http://localhost:8080/` öffnen, das Video hineinziehen, Körpergröße und
+Schlaghand eintragen, **Posen erkennen** klicken. Anschließend auf das Bild
+spulen, in dem der Ball die Saiten berührt, **Treffpunkt hier setzen**,
+**Auswerten**. Der Bericht ist derselbe wie überall sonst — es ist dieselbe
+`analyse()`-Funktion, die auch die Testsuite durchläuft.
 
-Die beiden mittleren Zeilen sind der eigentliche Punkt. Ein reiner Posentrack
-ist zu wenig, und das System sagt das, statt zu raten — siehe unten.
+Warum ein lokaler Server und kein Doppelklick auf die HTML-Datei: Browser
+verweigern WebAssembly aus einer `file://`-Seite. Der Server ist
+abhängigkeitsfrei und liefert nur das Prüfstands-Verzeichnis aus.
 
-## Weg 1: Video → Clip-Datei mit dem beiliegenden Skript
+Was dabei im Browser passiert:
+
+1. Der Browser dekodiert das Video — deshalb kein ffmpeg, kein Python.
+2. **MediaPipe Pose** schätzt in jedem Bild 33 Landmarks und eine
+   wurzelrelative 3D-Position in Metern. Beides läuft lokal; das Video verlässt
+   Ihren Rechner nicht.
+3. Daraus entsteht dieselbe Clip-Struktur, die auch das Kommandozeilen-Skript
+   schreibt, und die geht unverändert in die Messkette.
+
+Getestet ist der Weg mit einem echten Personenvideo: 70 Bilder, in 100 % davon
+eine Person erkannt, Skelett sauber auf den Körper gelegt. Was **nicht** getestet
+ist, weil hier kein Tennisvideo vorliegt: wie gut MediaPipe einen Aufschlag
+trifft. Der Schlagarm bewegt sich mit über 30 m/s und verschwindet in
+Bewegungsunschärfe — erwarten Sie dort die größten Ausfälle, und der Bericht
+sagt Ihnen unter „Pose-Tracking“, wie schlimm es war.
+
+### Grenzen des Browser-Wegs
+
+* **Videoformat.** Chrome und Safari lesen H.264-MP4 und WebM. HEVC aus dem
+  iPhone oft nicht — in der Foto-App als „Kompatibel“ exportieren oder
+  `ffmpeg -i clip.mov -c:v libx264 clip.mp4`.
+* **Länge.** Ausgewertet werden die ersten 900 Bilder. Ein Aufschlag braucht
+  keine zwei Sekunden; schneiden Sie das Video vorher zu.
+* **Bildwinkel.** Der Browser kennt ihn nicht. Ohne Eingabe wird er geschätzt,
+  und jede Längenangabe wird unsicherer.
+* **Zeitlupe.** Ist die Datei mit 30 fps abgespielte 240-fps-Aufnahme, gehört
+  240 in das Feld „Aufnahmerate“ — davon hängt ab, ob Zeitmessungen überhaupt
+  zulässig sind.
+
+## Der Weg über die Kommandozeile
 
 ```bash
 pip install mediapipe opencv-python
@@ -48,7 +74,7 @@ Den Treffpunkt findet kein Skript für Sie. Im Player Bild für Bild bis zum
 Moment, in dem der Ball die Saiten berührt, Bildnummer ablesen, als
 `--contact-frame` übergeben. Ein Klick pro Aufschlag.
 
-## Weg 2: Clip-Datei auswerten
+## Clip-Datei auswerten
 
 ```bash
 cd engine

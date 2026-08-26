@@ -64,6 +64,7 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--start", type=int, default=0, help="erstes zu lesendes Bild")
     p.add_argument("--end", type=int, default=None, help="letztes zu lesendes Bild")
     p.add_argument("--no-depth", action="store_true", help="Tiefenspur nicht mitschreiben")
+    p.add_argument("--flip-depth", action="store_true", help="Vorzeichen der Tiefenspur umkehren")
     p.add_argument("--model", default="yolo11n-pose.pt", help="nur für --backend ultralytics")
     return p.parse_args()
 
@@ -93,10 +94,14 @@ def extract_mediapipe(frames, args):
             keypoints.append([lm.x * width, lm.y * height, float(lm.visibility)])
         frame = {"keypoints": keypoints}
         if not args.no_depth and result.pose_world_landmarks:
-            # World landmarks are metres relative to the hip centre. MediaPipe's
-            # z grows towards the camera; the clip format expects depth along
-            # the viewing direction, so the sign is inverted here.
-            frame["depth"] = [-lm.z for lm in result.pose_world_landmarks.landmark]
+            # World landmarks are metres relative to the hip centre, and
+            # MediaPipe's z grows *away* from the camera — the smaller the
+            # value, the closer the landmark. That is the same direction the
+            # clip format calls depth, so the value is taken as it stands.
+            # If the reconstruction keeps reporting a low "Tiefenrichtung
+            # gesichert", pass --flip-depth and compare.
+            sign = -1.0 if args.flip_depth else 1.0
+            frame["depth"] = [sign * lm.z for lm in result.pose_world_landmarks.landmark]
         out.append(frame)
     pose.close()
     return out, "mediapipe33"

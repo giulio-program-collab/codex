@@ -1,3 +1,7 @@
 # Built for hosts that supply their own document skeleton; index.html is the
 # file to open. Regenerate with engine/tools/build-playground.ts.
 artifact.html
+
+# Pose model and WebAssembly runtime: fifteen megabytes that belong to Google,
+# fetched by engine/tools/fetch-models.ts rather than checked in.
+vendor/

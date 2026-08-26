@@ -65,6 +65,20 @@ node --experimental-strip-types tools/analyse-clip.ts clip.json   # eigenes Vide
 Danach `dashboard/index.html` oder `playground/index.html` im Browser öffnen.
 Beide Dateien sind eigenständig — kein Server, kein Netz.
 
+## Ein eigenes Video auswerten
+
+```bash
+cd engine
+node --experimental-strip-types tools/fetch-models.ts   # einmalig: Pose-Modell laden
+node --experimental-strip-types tools/serve.ts          # http://localhost:8080/
+```
+
+Video hineinziehen, Körpergröße eintragen, Posen erkennen lassen, Treffpunkt
+markieren, auswerten. Die Posenschätzung läuft im Browser (MediaPipe), das Video
+verlässt den Rechner nicht, und ausgewertet wird mit derselben `analyse()`, die
+auch die Testsuite durchläuft. Einzelheiten und Grenzen in
+[13 Eigene Videos](docs/13-eigene-videos.md).
+
 ## Der Prüfstand
 
 `playground/index.html` enthält die vollständige Engine als gebündeltes
