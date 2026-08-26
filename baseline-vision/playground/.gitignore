@@ -5,3 +5,7 @@ artifact.html
 # Pose model and WebAssembly runtime: fifteen megabytes that belong to Google,
 # fetched by engine/tools/fetch-models.ts rather than checked in.
 vendor/
+
+# Ten megabytes of embedded pose estimator; rebuilt by tools/build-video-artifact.ts.
+artifact-video.html
+video-standalone.html

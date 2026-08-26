@@ -69,7 +69,15 @@ Beide Dateien sind eigenständig — kein Server, kein Netz.
 
 ```bash
 cd engine
-node --experimental-strip-types tools/fetch-models.ts   # einmalig: Pose-Modell laden
+node --experimental-strip-types tools/fetch-models.ts          # einmalig: Pose-Modell laden
+node --experimental-strip-types tools/build-video-artifact.ts  # eine Datei, die alles enthält
+```
+
+Danach `playground/video-standalone.html` doppelklicken: 10,8 MB, darin die
+Messkette, die Oberfläche, die WebAssembly-Laufzeit und das Pose-Modell. Kein
+Server, keine Installation, kein Netz. Wer lieber einen Server hat:
+
+```bash
 node --experimental-strip-types tools/serve.ts          # http://localhost:8080/
 ```
 

@@ -1670,7 +1670,7 @@
   </p>
 </footer>
 
-<script id="engine-source" type="text/plain">
+<script id="engine-source">
 (function () {
 "use strict";
 var __defs = {};
@@ -9894,12 +9894,14 @@ globalThis["BaselineVision"] = __entry;
   /* Engine access                                                     */
   /* ---------------------------------------------------------------- */
 
+  // The engine is a normal script in this page, so it has already run by the
+  // time this file does — no eval, which matters because a strict
+  // content-security policy may forbid it. Its source is read back out of the
+  // same element to start the worker, since a script element's text stays
+  // readable after it executes.
   const engineSource = document.getElementById("engine-source").textContent;
-
-  // The engine runs on the main thread for the small things (metadata, and as a
-  // fallback) and in a worker for the analysis itself, which takes seconds.
-  (0, eval)(engineSource);
   const Engine = window.BaselineVision;
+  if (!Engine) throw new Error("Die Engine wurde nicht geladen.");
   const META = Engine.META;
 
   let worker = null;

@@ -1,6 +1,24 @@
 # 13 · Eigene Videos auswerten
 
-## Der kurze Weg: Video hineinziehen
+## Der kürzeste Weg: die eigenständige Seite
+
+```bash
+cd engine
+node --experimental-strip-types tools/fetch-models.ts          # einmalig, ca. 24 MB
+node --experimental-strip-types tools/build-video-artifact.ts  # baut playground/video-standalone.html
+```
+
+`playground/video-standalone.html` ist **eine einzige Datei von 10,8 MB**, die
+alles enthält: die Messkette, die Oberfläche, die WebAssembly-Laufzeit und das
+Pose-Modell. Doppelklick genügt — kein Server, keine Installation, keine
+Internetverbindung. Getestet auch unter einer strengen Content-Security-Policy
+ohne `eval` und ohne jeden externen Host.
+
+Warum das geht, obwohl Browser aus `file://`-Seiten kein WebAssembly nachladen:
+Es wird nichts nachgeladen. Laufzeit und Modell stecken gzip-komprimiert und
+base64-kodiert in der Datei und werden beim ersten Klick im Browser entpackt.
+
+## Mit lokalem Server: Video hineinziehen
 
 ```bash
 cd engine

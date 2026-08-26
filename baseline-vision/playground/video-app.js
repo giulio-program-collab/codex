@@ -41,9 +41,82 @@
   /* ---------------------------------------------------------------- */
 
   let visionModule = null;
+  let inlineWasm = null;
+  let inlineModel = null;
+
+  /** True when the page carries the estimator inside itself. */
+  const inlined = () => Boolean(window.__BV_ASSETS);
+
+  /**
+   * Unpacks an asset that was embedded in the page.
+   *
+   * The runtime and the model are fifteen megabytes, which is more than a
+   * single HTML file may weigh. Gzipped and base64-encoded they are ten, which
+   * is not, and the browser can undo both in about a tenth of a second. This is
+   * what lets the published page analyse a video without fetching anything —
+   * which matters because it may not fetch anything.
+   */
+  async function inflate(base64) {
+    const binary = atob(base64);
+    const packed = new Uint8Array(binary.length);
+    for (let i = 0; i < binary.length; i++) packed[i] = binary.charCodeAt(i);
+    if (typeof DecompressionStream !== "function") {
+      throw new Error(
+        "Dieser Browser kann die eingebetteten Daten nicht entpacken (DecompressionStream fehlt). " +
+          "Chrome, Edge, Firefox ab 113 oder Safari ab 16.4 können es.",
+      );
+    }
+    const stream = new Blob([packed]).stream().pipeThrough(new DecompressionStream("gzip"));
+    return new Uint8Array(await new Response(stream).arrayBuffer());
+  }
 
   async function loadLandmarker(modelFile) {
     const status = (text) => ($("v-status").textContent = text);
+
+    if (inlined()) {
+      // Everything is already in the page: the bundle ran as a plain script and
+      // left its exports on a global, and the two binaries only have to be
+      // unpacked once.
+      visionModule = window.__mpVision;
+      if (!visionModule) throw new Error("Die Posen-Bibliothek fehlt in dieser Seite.");
+      if (!inlineWasm) {
+        status("Laufzeit wird entpackt …");
+        inlineWasm = await inflate(window.__BV_ASSETS.wasm);
+        status("Modell wird entpackt …");
+        inlineModel = await inflate(window.__BV_ASSETS.model);
+      }
+      if (state.landmarker) return state.landmarker.instance;
+
+      status("Posenerkennung wird gestartet …");
+      const build = async (delegate) => {
+        // The bundle clears both globals after it uses them, so they are set
+        // again for every attempt. `Module.wasmBinary` is the hook that stops
+        // Emscripten from fetching the WebAssembly it already has.
+        self.ModuleFactory = window.__BV_MODULE_FACTORY;
+        self.Module = { wasmBinary: inlineWasm };
+        return visionModule.PoseLandmarker.createFromOptions(
+          { wasmLoaderPath: "", wasmBinaryPath: "" },
+          {
+            baseOptions: { modelAssetBuffer: inlineModel, delegate },
+            runningMode: "VIDEO",
+            numPoses: 1,
+            minPoseDetectionConfidence: 0.3,
+            minPosePresenceConfidence: 0.3,
+            minTrackingConfidence: 0.3,
+            outputSegmentationMasks: false,
+          },
+        );
+      };
+      let instance;
+      try {
+        instance = await build("GPU");
+      } catch (err) {
+        status("Keine GPU verfügbar, es wird auf der CPU gerechnet — das dauert länger.");
+        instance = await build("CPU");
+      }
+      state.landmarker = { modelFile: "inline", instance };
+      return instance;
+    }
 
     if (!visionModule) {
       status("Laufzeit wird geladen …");
@@ -83,13 +156,13 @@
   /* Reading the video                                                 */
   /* ---------------------------------------------------------------- */
 
-  function loadVideo(file) {
+  function loadVideo(file, sourceUrl) {
     state.file = file;
     const video = document.createElement("video");
     video.preload = "auto";
     video.muted = true;
     video.playsInline = true;
-    video.src = URL.createObjectURL(file);
+    video.src = sourceUrl || URL.createObjectURL(file);
 
     video.addEventListener("loadedmetadata", () => {
       state.video = video;
@@ -118,6 +191,17 @@
     });
 
     video.addEventListener("error", () => {
+      // Some sandboxes refuse blob: URLs for media. Reading the file into a
+      // data URL costs memory but needs no URL scheme at all, so it is worth
+      // one retry before telling anyone their video is at fault.
+      if (!sourceUrl) {
+        const reader = new FileReader();
+        reader.onload = () => loadVideo(file, String(reader.result));
+        reader.onerror = () =>
+          window.Playground.fail("Die Videodatei konnte nicht gelesen werden (" + file.name + ").");
+        reader.readAsDataURL(file);
+        return;
+      }
       window.Playground.fail(
         "Der Browser kann dieses Video nicht dekodieren (" +
           file.name +
@@ -423,6 +507,7 @@
    * first turns that into one sentence naming the command that was missed.
    */
   async function vendorPresent() {
+    if (inlined()) return true;
     try {
       const response = await fetch(VENDOR + "vision_bundle.mjs", { method: "HEAD" });
       return response.ok;
@@ -433,6 +518,11 @@
 
   function init() {
     $("video-block").hidden = false;
+    if (inlined()) {
+      const select = $("v-model");
+      if (select) select.closest(".field").querySelector('label[for="v-model"]').hidden = true;
+      if (select) select.hidden = true;
+    }
     // Videos dropped on the clip zone belong here too.
     window.__videoRoute = loadVideo;
     // One zone, not two: the second one was a trap, because the file someone
