@@ -232,14 +232,56 @@
     const zone = $("dropzone");
     const input = $("clipfile");
 
+    const VIDEO_EXTENSIONS = ["mp4", "mov", "m4v", "avi", "mkv", "webm", "mts", "hevc", "wmv", "flv"];
+
     const load = (file) => {
       if (!file) return;
+      const extension = (file.name.split(".").pop() || "").toLowerCase();
+
+      // The commonest mistake, and worth naming precisely: a video file is
+      // exactly what someone would try first, and "not readable" tells them
+      // nothing about why or what to do instead.
+      if (file.type.indexOf("video/") === 0 || VIDEO_EXTENSIONS.indexOf(extension) >= 0) {
+        fail(
+          "Das ist eine Videodatei (." + extension + "). Der Prüfstand liest keine Videos: Die Messkette " +
+            "beginnt bei Gelenkpunkten, nicht bei Pixeln, und der Pose-Estimator läuft bewusst " +
+            "außerhalb. Erzeugen Sie zuerst die Clip-Datei — " +
+            "python engine/tools/extract-pose.py " + file.name + " clip.json --height-cm 185 " +
+            "--hand right --level high_performance --contact-frame <Bildnummer> — und legen Sie dann " +
+            "clip.json hier ab.",
+        );
+        return;
+      }
+
       const reader = new FileReader();
       reader.onload = () => {
+        const text = String(reader.result);
+        const firstChar = text.replace(/^[\s\uFEFF]+/, "").charAt(0);
+        if (firstChar !== "{") {
+          fail(
+            "Diese Datei ist kein Clip-JSON: Sie beginnt nicht mit „{“, sondern mit " +
+              (firstChar ? "„" + firstChar + "“" : "gar nichts — die Datei ist leer") +
+              ". Erwartet wird die JSON-Datei aus tools/extract-pose.py, nicht das Video und " +
+              "nicht der fertige Bericht.",
+          );
+          return;
+        }
         try {
-          state.clip = JSON.parse(String(reader.result));
+          state.clip = JSON.parse(text);
         } catch (err) {
-          fail("Die Datei ist kein gültiges JSON: " + String((err && err.message) || err));
+          fail(
+            "Die Datei ist kein gültiges JSON: " + String((err && err.message) || err) +
+              ". Häufigste Ursache: Der Export wurde abgebrochen und die Datei ist unvollständig.",
+          );
+          return;
+        }
+        if (!state.clip || state.clip.format !== "baseline-vision-clip") {
+          fail(
+            "Die Datei ist gültiges JSON, aber keine Clip-Datei: Das Feld „format“ fehlt oder lautet " +
+              (state.clip && state.clip.format ? "„" + state.clip.format + "“" : "nichts") +
+              " statt „baseline-vision-clip“.",
+          );
+          state.clip = null;
           return;
         }
         state.clipName = file.name;
@@ -258,6 +300,21 @@
     };
 
     input.addEventListener("change", () => load(input.files && input.files[0]));
+
+    // A file dropped anywhere else on the page would otherwise make the browser
+    // navigate away from the playground, which looks exactly like the page
+    // rejecting the file.
+    ["dragover", "drop"].forEach((type) =>
+      window.addEventListener(type, (e) => {
+        if (zone.contains(e.target)) return;
+        e.preventDefault();
+        if (type === "drop") {
+          const file = e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0];
+          if (file) load(file);
+        }
+      }),
+    );
+
     ["dragenter", "dragover"].forEach((type) =>
       zone.addEventListener(type, (e) => {
         e.preventDefault();
@@ -366,6 +423,13 @@
     p.style.color = "var(--ink-soft)";
     card.appendChild(p);
     host.appendChild(card);
+    $("clip-aside").textContent = state.clipName || "";
+    panelIntoView();
+  }
+
+  function panelIntoView() {
+    const panel = $("clip-panel");
+    if (panel.scrollIntoView) panel.scrollIntoView({ block: "nearest", behavior: "smooth" });
   }
 
   function accept(result) {

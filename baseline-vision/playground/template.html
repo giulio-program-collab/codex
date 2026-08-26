@@ -1254,11 +1254,12 @@
       <span class="name">Eigenes Video</span>
       <label class="dropzone" id="dropzone">
         Clip-Datei hier ablegen oder klicken
-        <input type="file" id="clipfile" accept=".json,application/json" />
+        <input type="file" id="clipfile" />
       </label>
       <p class="hint">
-        JSON aus <code style="font-family: var(--data); font-size: 0.72rem">tools/extract-pose.py</code>.
-        Die Analyse läuft dann auf Ihren Bildern statt auf der Simulation.
+        Erwartet wird eine <b>JSON-Datei</b> mit Gelenkpunkten, nicht das Video selbst — erzeugt von
+        <code style="font-family: var(--data); font-size: 0.72rem">tools/extract-pose.py</code>. Der
+        Prüfstand rechnet dann auf Ihren Bildern statt auf der Simulation.
       </p>
       <div class="clipbadge" id="clipbadge">
         <b id="clipname"></b>
