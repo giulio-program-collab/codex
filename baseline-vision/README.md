@@ -39,6 +39,7 @@ engine/       Die Messkette: 14 Layer, jeder einzeln testbar
   src/layers/   L1 Ingest … L14 Report
   src/session.ts  Mehrere Wiederholungen einer Sitzung, aggregiert
   src/fixtures/ Parametrisches 3D-Aufschlagmodell + virtuelle Kamera (Ground Truth)
+  src/io/       Clip-Format: der Eingang für echtes Videomaterial
   test/         70 Tests: Acceptance, Validierung, Sitzung, Layer-Unit-Tests, Legacy-Vergleich
   playground/   Browser-Einstiegspunkt für den Prüfstand
   tools/        Baut Dashboard und Prüfstand aus echtem Pipeline-Output
@@ -58,6 +59,7 @@ node --experimental-strip-types tools/walkthrough.ts        # Ein Aufschlag, Sch
 node --experimental-strip-types tools/build-demo.ts         # Dashboard bauen
 node --experimental-strip-types tools/build-playground.ts   # Prüfstand bauen
 node --experimental-strip-types tools/results.ts            # Ergebnismessung alt gegen neu
+node --experimental-strip-types tools/analyse-clip.ts clip.json   # eigenes Video auswerten
 ```
 
 Danach `dashboard/index.html` oder `playground/index.html` im Browser öffnen.
@@ -103,4 +105,5 @@ zurückziehen, das seinen eigenen Belegen widerspricht.
 | [09 Validierung](docs/09-validierung.md)                   | Teststrategie und gemessene Genauigkeit                |
 | [10 Implementierungsplan](docs/10-implementierungsplan.md) | Reihenfolge, Aufwand, Priorisierung                    |
 | [11 Risiken und Grenzen](docs/11-risiken.md)               | Was das System nicht kann und nie können wird          |
+| [13 Eigene Videos](docs/13-eigene-videos.md)               | Wie echtes Videomaterial in die Messkette kommt        |
 | [12 Ergebnisbericht](docs/12-ergebnis.html)                | Alt gegen neu, gemessen: Sinner-Test, Genauigkeit, Grenze |

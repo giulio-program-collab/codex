@@ -382,6 +382,78 @@
     outline-offset: 2px;
   }
 
+  .dropzone {
+    border: 1px dashed var(--line-strong);
+    border-radius: 2px;
+    padding: 0.7rem;
+    text-align: center;
+    font-size: 0.78rem;
+    color: var(--ink-soft);
+    cursor: pointer;
+    transition: border-color 0.15s ease, background 0.15s ease;
+  }
+
+  .dropzone:hover,
+  .dropzone[data-over="true"] {
+    border-color: var(--accent);
+    background: var(--accent-wash);
+    color: var(--ink);
+  }
+
+  .dropzone input {
+    display: none;
+  }
+
+  .clipbadge {
+    display: none;
+    flex-direction: column;
+    gap: 0.35rem;
+    font-size: 0.78rem;
+    border-left: 3px solid var(--accent);
+    background: var(--surface-sunk);
+    padding: 0.55rem 0.7rem;
+  }
+
+  .clipbadge[data-active="true"] {
+    display: flex;
+  }
+
+  .clipbadge b {
+    font-family: var(--data);
+    font-size: 0.76rem;
+    word-break: break-all;
+  }
+
+  .clipbadge button {
+    align-self: flex-start;
+    font-family: var(--data);
+    font-size: 0.72rem;
+    background: none;
+    border: 1px solid var(--line);
+    border-radius: 2px;
+    padding: 0.2rem 0.45rem;
+    color: var(--ink-soft);
+    cursor: pointer;
+  }
+
+  .clipbadge button:hover {
+    border-color: var(--accent);
+    color: var(--accent);
+  }
+
+  .rail fieldset {
+    border: 0;
+    padding: 0;
+    margin: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 1.1rem;
+  }
+
+  .rail fieldset[disabled] {
+    opacity: 0.45;
+  }
+
   .rail hr {
     border: 0;
     border-top: 1px solid var(--line);
@@ -1179,6 +1251,24 @@
 <div class="shell">
   <form class="rail" id="controls" autocomplete="off">
     <div class="field">
+      <span class="name">Eigenes Video</span>
+      <label class="dropzone" id="dropzone">
+        Clip-Datei hier ablegen oder klicken
+        <input type="file" id="clipfile" accept=".json,application/json" />
+      </label>
+      <p class="hint">
+        JSON aus <code style="font-family: var(--data); font-size: 0.72rem">tools/extract-pose.py</code>.
+        Die Analyse läuft dann auf Ihren Bildern statt auf der Simulation.
+      </p>
+      <div class="clipbadge" id="clipbadge">
+        <b id="clipname"></b>
+        <span id="clipdepth"></span>
+        <button type="button" id="clipclear">Zurück zur Simulation</button>
+      </div>
+    </div>
+
+    <fieldset id="synthetic">
+    <div class="field">
       <label class="name" for="preset">Spieler</label>
       <select id="preset" name="preset"></select>
       <p class="hint" id="preset-hint"></p>
@@ -1242,6 +1332,7 @@
       <input type="number" id="seed" min="1" max="999" step="1" value="5" />
       <p class="hint">Gleiche Saat, gleiche Aufnahme — die Auswertung ist reproduzierbar.</p>
     </div>
+    </fieldset>
   </form>
 
   <main class="readout" id="readout">
@@ -1267,6 +1358,11 @@
           </div>
         </div>
       </div>
+    </section>
+
+    <section class="panel" id="clip-panel" hidden>
+      <header><h2>Zur eingelesenen Datei</h2><span class="aside" id="clip-aside"></span></header>
+      <div class="body"><div class="stack" id="clip-warnings"></div></div>
     </section>
 
     <section class="panel">
@@ -1337,7 +1433,7 @@
       </div>
     </section>
 
-    <section class="panel">
+    <section class="panel" id="legacy-panel">
       <header>
         <h2>Altes Verfahren auf derselben Aufnahme</h2>
         <span class="aside">Baseline Pro, zwei Bilder, vier Winkel</span>
@@ -1389,7 +1485,7 @@
       </div>
     </section>
 
-    <section class="panel">
+    <section class="panel" id="truth-panel">
       <header><h2>Prüfstands-Kontrolle</h2><span class="aside">nur im Prüfstand verfügbar</span></header>
       <div class="body">
         <p class="prose">

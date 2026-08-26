@@ -5,6 +5,7 @@ import { rootRelativeJointErrorM } from "../src/fixtures/accuracy.ts";
 import { CAMERA_RIGS, type RenderOptions } from "../src/fixtures/render.ts";
 import { SERVE_PRESETS, generateServe, type ServeParams } from "../src/fixtures/serve-model.ts";
 import { legacyServeScore, LEGACY_REFERENCES, type LegacyAngleId } from "../src/legacy/legacy-2d.ts";
+import { parseClip, type ParseOptions } from "../src/io/clip.ts";
 import { project } from "../src/core/camera.ts";
 import { BONES, JOINTS, type Joint, type PlayerLevel } from "../src/core/types.ts";
 import type { AnalysisRequest } from "../src/core/types.ts";
@@ -213,19 +214,24 @@ export interface LegacyView {
 }
 
 export interface PlaygroundResult {
-  input: PlaygroundInput;
+  /** Absent for an imported clip: there are no settings behind real footage. */
+  input: PlaygroundInput | null;
+  /** Where the material came from, for the interface to say so. */
+  origin: { kind: "fixture" } | { kind: "clip"; name: string; warnings: string[]; depthPrior: string | null };
   report: PipelineResult["report"];
   overlay: OverlayFrame[];
   video: { widthPx: number; heightPx: number; fps: number };
   contactFrame: number | null;
   phases: PipelineResult["report"]["phases"];
-  truth: TruthRow[];
+  /** Only a simulated stroke has known true values; a real clip has none. */
+  truth: TruthRow[] | null;
   accuracy: {
-    jointErrorMm: number;
+    /** Null for an imported clip: nothing to compare the reconstruction against. */
+    jointErrorMm: number | null;
     verticalConfidence: number;
     mirrorConfidence: number;
   };
-  legacy: LegacyView;
+  legacy: LegacyView | null;
   session: SessionSummary | null;
   elapsedMs: number;
 }
@@ -312,6 +318,7 @@ export function run(input: PlaygroundInput, progress: Progress = () => {}): Play
 
   return {
     input,
+    origin: { kind: "fixture" },
     report: result.report,
     overlay: buildOverlay(result, primary.request),
     video: {
@@ -404,3 +411,58 @@ export const META = {
     note: CAPTURE_GRADES[id].note,
   })),
 };
+
+/* ------------------------------------------------------------------ */
+/* Imported clips                                                      */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Analyses a clip file produced from real footage.
+ *
+ * The same `analyse` call, the same report. What falls away is everything the
+ * fixture knew and a camera cannot: there are no true values to compare
+ * against, and the old method cannot be run alongside because it needs the
+ * ground-truth joint positions to be digitised perfectly, which is the one
+ * advantage this comparison always gave it.
+ */
+export function runClip(
+  json: unknown,
+  name: string,
+  options: ParseOptions = {},
+  progress: Progress = () => {},
+): PlaygroundResult {
+  const started = Date.now();
+  progress("Clip einlesen", 0.1);
+  const { request, depthPrior, warnings } = parseClip(json, options);
+
+  progress("Durch die Pipeline", 0.4);
+  const result = analyse(request, { depthPrior });
+
+  return {
+    input: null,
+    origin: {
+      kind: "clip",
+      name,
+      warnings,
+      depthPrior: depthPrior ? depthPrior.id : null,
+    },
+    report: result.report,
+    overlay: buildOverlay(result, request),
+    video: {
+      widthPx: request.video.widthPx,
+      heightPx: request.video.heightPx,
+      fps: request.video.fps,
+    },
+    contactFrame: result.intermediates.contactFrame,
+    phases: result.report.phases,
+    truth: null,
+    accuracy: {
+      jointErrorMm: null,
+      verticalConfidence: result.intermediates.verticalConfidence,
+      mirrorConfidence: result.intermediates.mirrorConfidence,
+    },
+    legacy: null,
+    session: null,
+    elapsedMs: Date.now() - started,
+  };
+}

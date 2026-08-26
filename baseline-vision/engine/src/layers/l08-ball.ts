@@ -118,12 +118,21 @@ export function trackBall(frames: FrameObservation[], opts: BallOptions): BallRe
   }
 
   const meanScore = clamp(mean(track.filter((t) => t.p).map((t) => t.score)) ?? 0, 0, 1);
+  // As in layer 7: a clip that never carried a ball track is not a clip whose
+  // ball track failed.
+  const supplied = frames.some((f) => f.ball);
+  if (!supplied) {
+    notes.push(
+      "Keine Ballbeobachtungen im Material. Der Treffpunkt muss daher aus der Bewegung oder " +
+        "aus einer Markierung stammen.",
+    );
+  }
 
   return {
     report: {
       id: "L8",
       name: "Ballerkennung",
-      status: coverage > 0.5 ? "ok" : coverage > 0.15 ? "degraded" : "failed",
+      status: !supplied ? "skipped" : coverage > 0.5 ? "ok" : coverage > 0.15 ? "degraded" : "failed",
       quality: clamp(coverage * (0.4 + 0.6 * meanScore), 0, 1),
       notes,
       diagnostics: {

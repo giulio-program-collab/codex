@@ -21,6 +21,14 @@ export interface QualityComponent {
   score: number;
   /** What the coach can do about it, when there is something. */
   remedy: string | null;
+  /**
+   * False when the input never contained what this component measures — a clip
+   * with no racket track, say. Such a component is left out of the score rather
+   * than counted as zero: the recording is not worse for lacking something
+   * nobody supplied, and marking it down would push clips below the verdict
+   * threshold for a reason that has nothing to do with their quality.
+   */
+  applicable?: boolean;
 }
 
 export interface QualityReport {
@@ -105,7 +113,23 @@ export function assessQuality(input: ConfidenceInput): QualityReport {
     racket: 0.09,
     ball: 0.05,
   };
-  const weighted = components.reduce((s, c) => s + c.score * (weights[c.id] ?? 0), 0);
+  const layerOf: Record<string, string> = {
+    pose: "L4",
+    reconstruction: "L6",
+    racket: "L7",
+    ball: "L8",
+    segmentation: "L9",
+    calibration: "L2",
+  };
+  for (const c of components) {
+    c.applicable = byId.get(layerOf[c.id] ?? "")?.status !== "skipped";
+  }
+  const applicable = components.filter((c) => c.applicable !== false);
+  const weightSum = applicable.reduce((s, c) => s + (weights[c.id] ?? 0), 0);
+  const weighted =
+    weightSum > 0
+      ? applicable.reduce((s, c) => s + c.score * (weights[c.id] ?? 0), 0) / weightSum
+      : 0;
   const criticalIds = new Set(["pose", "reconstruction", "segmentation"]);
   const worstCritical = Math.min(...components.filter((c) => criticalIds.has(c.id)).map((c) => c.score));
   const overall = Math.round(clamp(Math.min(weighted, 35 + 0.65 * worstCritical), 0, 100));

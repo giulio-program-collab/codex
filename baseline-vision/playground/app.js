@@ -17,7 +17,7 @@
   let worker = null;
   try {
     const blob = new Blob(
-      [engineSource + "\nself.onmessage=function(e){try{var r=self.BaselineVision.run(e.data.input,function(l,f){self.postMessage({type:'progress',label:l,fraction:f});});self.postMessage({type:'done',id:e.data.id,result:r});}catch(err){self.postMessage({type:'error',id:e.data.id,message:String(err&&err.stack||err)});}};"],
+      [engineSource + "\nself.onmessage=function(e){try{var p=function(l,f){self.postMessage({type:'progress',label:l,fraction:f});};var r=e.data.clip?self.BaselineVision.runClip(e.data.clip,e.data.name,{},p):self.BaselineVision.run(e.data.input,p);self.postMessage({type:'done',id:e.data.id,result:r});}catch(err){self.postMessage({type:'error',id:e.data.id,message:String(err&&err.message||err)});}};"],
       { type: "text/javascript" },
     );
     worker = new Worker(URL.createObjectURL(blob));
@@ -49,6 +49,9 @@
     playing: false,
     orbit: { azimuth: -38, elevation: 16 },
     runId: 0,
+    /** A clip file the reader dropped in; when set, the controls are inert. */
+    clip: null,
+    clipName: "",
   };
 
   const LEVEL_FOR_PRESET = {
@@ -219,9 +222,67 @@
       updateFrameLabel();
     });
 
+    setupClipLoading();
     updatePresetHint();
     updateCaptureHint();
     setupOrbit();
+  }
+
+  function setupClipLoading() {
+    const zone = $("dropzone");
+    const input = $("clipfile");
+
+    const load = (file) => {
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = () => {
+        try {
+          state.clip = JSON.parse(String(reader.result));
+        } catch (err) {
+          fail("Die Datei ist kein gültiges JSON: " + String((err && err.message) || err));
+          return;
+        }
+        state.clipName = file.name;
+        $("clipname").textContent = file.name;
+        $("clipdepth").textContent =
+          (state.clip.frames ? state.clip.frames.length + " Bilder" : "unbekannte Länge") +
+          (state.clip.contactFrame !== undefined
+            ? " · Treffpunkt bei " + state.clip.contactFrame
+            : " · kein Treffpunkt markiert");
+        $("clipbadge").dataset.active = "true";
+        $("synthetic").disabled = true;
+        runAnalysis();
+      };
+      reader.onerror = () => fail("Die Datei konnte nicht gelesen werden.");
+      reader.readAsText(file);
+    };
+
+    input.addEventListener("change", () => load(input.files && input.files[0]));
+    ["dragenter", "dragover"].forEach((type) =>
+      zone.addEventListener(type, (e) => {
+        e.preventDefault();
+        zone.dataset.over = "true";
+      }),
+    );
+    ["dragleave", "drop"].forEach((type) =>
+      zone.addEventListener(type, (e) => {
+        e.preventDefault();
+        zone.dataset.over = "false";
+      }),
+    );
+    zone.addEventListener("drop", (e) => {
+      const file = e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0];
+      load(file);
+    });
+
+    $("clipclear").addEventListener("click", () => {
+      state.clip = null;
+      state.clipName = "";
+      $("clipbadge").dataset.active = "false";
+      $("synthetic").disabled = false;
+      input.value = "";
+      runAnalysis();
+    });
   }
 
   const PRESET_HINTS = {
@@ -259,7 +320,8 @@
   function runAnalysis() {
     const id = ++state.runId;
     const input = Object.assign({}, state.input);
-    setBusy(true, "Aufnahme wird gerendert", 0.02);
+    const clip = state.clip;
+    setBusy(true, clip ? "Clip wird eingelesen" : "Aufnahme wird gerendert", 0.02);
 
     if (worker) {
       worker.onmessage = (event) => {
@@ -270,13 +332,12 @@
         }
         if (message.id !== id) return;
         if (message.type === "error") {
-          setBusy(false, "Fehler");
-          console.error(message.message);
+          fail(message.message);
           return;
         }
         accept(message.result);
       };
-      worker.postMessage({ id, input });
+      worker.postMessage({ id, input, clip, name: state.clipName });
       return;
     }
 
@@ -284,13 +345,27 @@
     requestAnimationFrame(() =>
       requestAnimationFrame(() => {
         try {
-          accept(Engine.run(input));
+          accept(clip ? Engine.runClip(clip, state.clipName) : Engine.run(input));
         } catch (err) {
-          setBusy(false, "Fehler");
-          console.error(err);
+          fail(String((err && err.message) || err));
         }
       }),
     );
+  }
+
+  function fail(message) {
+    setBusy(false, "Datei nicht lesbar");
+    const host = $("clip-warnings");
+    $("clip-panel").hidden = false;
+    clear(host);
+    const card = el("div", "card");
+    card.dataset.tone = "alert";
+    card.appendChild(el("h3", null, "Die Datei konnte nicht ausgewertet werden"));
+    const p = el("p", null, message);
+    p.style.fontSize = "0.83rem";
+    p.style.color = "var(--ink-soft)";
+    card.appendChild(p);
+    host.appendChild(card);
   }
 
   function accept(result) {
@@ -315,9 +390,42 @@
     renderNotMeasurable(report);
     renderFindings(report);
     renderSession(result.session);
-    renderLegacy(result, report);
+    renderOrigin(result);
     renderPipeline(report);
-    renderTruth(result, report);
+
+    // A real clip has no ground truth and no comparable legacy run: the old
+    // method was only ever given perfect digitisation, which is what made the
+    // comparison fair to it.
+    $("legacy-panel").hidden = !result.legacy;
+    $("truth-panel").hidden = !result.truth;
+    if (result.legacy) renderLegacy(result, report);
+    if (result.truth) renderTruth(result, report);
+  }
+
+  function renderOrigin(result) {
+    const panel = $("clip-panel");
+    if (result.origin.kind !== "clip") {
+      panel.hidden = true;
+      return;
+    }
+    panel.hidden = false;
+    $("clip-aside").textContent = result.origin.depthPrior
+      ? "Tiefenspur: " + result.origin.depthPrior
+      : "ohne Tiefenspur";
+    const host = $("clip-warnings");
+    clear(host);
+    if (!result.origin.warnings.length) {
+      host.appendChild(el("p", "empty", "Die Datei enthält alles, was die Auswertung braucht."));
+      return;
+    }
+    result.origin.warnings.forEach((warning) => {
+      const card = el("div", "card");
+      card.dataset.tone = "warn";
+      const p = el("p", null, warning);
+      p.style.fontSize = "0.85rem";
+      card.appendChild(p);
+      host.appendChild(card);
+    });
   }
 
   function renderVerdict(report) {
@@ -377,12 +485,15 @@
       row.appendChild(el("span", null, component.label));
       const track = el("span", "track");
       const fill = el("i");
-      fill.style.width = Math.max(0, Math.min(100, component.score)) + "%";
+      // A component the material never contained is not a bad score, and the
+      // bar must not draw it as one.
+      const missing = component.applicable === false;
+      fill.style.width = missing ? "0%" : Math.max(0, Math.min(100, component.score)) + "%";
       fill.dataset.level = component.score >= 70 ? "good" : component.score >= 45 ? "warn" : "alert";
       track.appendChild(fill);
       row.appendChild(track);
-      row.appendChild(el("span", "val", component.score));
-      row.title = component.remedy || "";
+      row.appendChild(el("span", "val", missing ? "n. v." : component.score));
+      row.title = missing ? "Im Material nicht enthalten." : component.remedy || "";
       rows.appendChild(row);
     });
 
@@ -782,8 +893,9 @@
   function renderMetrics(report, truthRows) {
     const host = $("metrics");
     clear(host);
+    // A real clip carries no ground truth; the marks simply do not appear.
     const truthById = {};
-    truthRows.forEach((row) => {
+    (truthRows || []).forEach((row) => {
       truthById[row.id] = row.truth;
     });
 

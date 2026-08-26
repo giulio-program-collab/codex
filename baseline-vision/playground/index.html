@@ -387,6 +387,78 @@
     outline-offset: 2px;
   }
 
+  .dropzone {
+    border: 1px dashed var(--line-strong);
+    border-radius: 2px;
+    padding: 0.7rem;
+    text-align: center;
+    font-size: 0.78rem;
+    color: var(--ink-soft);
+    cursor: pointer;
+    transition: border-color 0.15s ease, background 0.15s ease;
+  }
+
+  .dropzone:hover,
+  .dropzone[data-over="true"] {
+    border-color: var(--accent);
+    background: var(--accent-wash);
+    color: var(--ink);
+  }
+
+  .dropzone input {
+    display: none;
+  }
+
+  .clipbadge {
+    display: none;
+    flex-direction: column;
+    gap: 0.35rem;
+    font-size: 0.78rem;
+    border-left: 3px solid var(--accent);
+    background: var(--surface-sunk);
+    padding: 0.55rem 0.7rem;
+  }
+
+  .clipbadge[data-active="true"] {
+    display: flex;
+  }
+
+  .clipbadge b {
+    font-family: var(--data);
+    font-size: 0.76rem;
+    word-break: break-all;
+  }
+
+  .clipbadge button {
+    align-self: flex-start;
+    font-family: var(--data);
+    font-size: 0.72rem;
+    background: none;
+    border: 1px solid var(--line);
+    border-radius: 2px;
+    padding: 0.2rem 0.45rem;
+    color: var(--ink-soft);
+    cursor: pointer;
+  }
+
+  .clipbadge button:hover {
+    border-color: var(--accent);
+    color: var(--accent);
+  }
+
+  .rail fieldset {
+    border: 0;
+    padding: 0;
+    margin: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 1.1rem;
+  }
+
+  .rail fieldset[disabled] {
+    opacity: 0.45;
+  }
+
   .rail hr {
     border: 0;
     border-top: 1px solid var(--line);
@@ -1187,6 +1259,24 @@
 <div class="shell">
   <form class="rail" id="controls" autocomplete="off">
     <div class="field">
+      <span class="name">Eigenes Video</span>
+      <label class="dropzone" id="dropzone">
+        Clip-Datei hier ablegen oder klicken
+        <input type="file" id="clipfile" accept=".json,application/json" />
+      </label>
+      <p class="hint">
+        JSON aus <code style="font-family: var(--data); font-size: 0.72rem">tools/extract-pose.py</code>.
+        Die Analyse läuft dann auf Ihren Bildern statt auf der Simulation.
+      </p>
+      <div class="clipbadge" id="clipbadge">
+        <b id="clipname"></b>
+        <span id="clipdepth"></span>
+        <button type="button" id="clipclear">Zurück zur Simulation</button>
+      </div>
+    </div>
+
+    <fieldset id="synthetic">
+    <div class="field">
       <label class="name" for="preset">Spieler</label>
       <select id="preset" name="preset"></select>
       <p class="hint" id="preset-hint"></p>
@@ -1250,6 +1340,7 @@
       <input type="number" id="seed" min="1" max="999" step="1" value="5" />
       <p class="hint">Gleiche Saat, gleiche Aufnahme — die Auswertung ist reproduzierbar.</p>
     </div>
+    </fieldset>
   </form>
 
   <main class="readout" id="readout">
@@ -1275,6 +1366,11 @@
           </div>
         </div>
       </div>
+    </section>
+
+    <section class="panel" id="clip-panel" hidden>
+      <header><h2>Zur eingelesenen Datei</h2><span class="aside" id="clip-aside"></span></header>
+      <div class="body"><div class="stack" id="clip-warnings"></div></div>
     </section>
 
     <section class="panel">
@@ -1345,7 +1441,7 @@
       </div>
     </section>
 
-    <section class="panel">
+    <section class="panel" id="legacy-panel">
       <header>
         <h2>Altes Verfahren auf derselben Aufnahme</h2>
         <span class="aside">Baseline Pro, zwei Bilder, vier Winkel</span>
@@ -1397,7 +1493,7 @@
       </div>
     </section>
 
-    <section class="panel">
+    <section class="panel" id="truth-panel">
       <header><h2>Prüfstands-Kontrolle</h2><span class="aside">nur im Prüfstand verfügbar</span></header>
       <div class="body">
         <p class="prose">
@@ -1486,6 +1582,7 @@ __defs["playground/entry.ts"] = function (exports, require, module) {
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.META = exports.PRESET_LABELS = exports.RIG_LABELS = exports.CAPTURE_GRADES = void 0;
 exports.run = run;
+exports.runClip = runClip;
 const pipeline_ts_1 = require("../src/pipeline.ts");
 const session_ts_1 = require("../src/session.ts");
 const scenarios_ts_1 = require("../src/fixtures/scenarios.ts");
@@ -1493,6 +1590,7 @@ const accuracy_ts_1 = require("../src/fixtures/accuracy.ts");
 const render_ts_1 = require("../src/fixtures/render.ts");
 const serve_model_ts_1 = require("../src/fixtures/serve-model.ts");
 const legacy_2d_ts_1 = require("../src/legacy/legacy-2d.ts");
+const clip_ts_1 = require("../src/io/clip.ts");
 const camera_ts_1 = require("../src/core/camera.ts");
 const types_ts_1 = require("../src/core/types.ts");
 exports.CAPTURE_GRADES = {
@@ -1662,6 +1760,7 @@ function run(input, progress = () => { }) {
     progress("Fertig", 1);
     return {
         input,
+        origin: { kind: "fixture" },
         report: result.report,
         overlay: buildOverlay(result, primary.request),
         video: {
@@ -1751,6 +1850,52 @@ exports.META = {
         note: exports.CAPTURE_GRADES[id].note,
     })),
 };
+/* ------------------------------------------------------------------ */
+/* Imported clips                                                      */
+/* ------------------------------------------------------------------ */
+/**
+ * Analyses a clip file produced from real footage.
+ *
+ * The same `analyse` call, the same report. What falls away is everything the
+ * fixture knew and a camera cannot: there are no true values to compare
+ * against, and the old method cannot be run alongside because it needs the
+ * ground-truth joint positions to be digitised perfectly, which is the one
+ * advantage this comparison always gave it.
+ */
+function runClip(json, name, options = {}, progress = () => { }) {
+    const started = Date.now();
+    progress("Clip einlesen", 0.1);
+    const { request, depthPrior, warnings } = (0, clip_ts_1.parseClip)(json, options);
+    progress("Durch die Pipeline", 0.4);
+    const result = (0, pipeline_ts_1.analyse)(request, { depthPrior });
+    return {
+        input: null,
+        origin: {
+            kind: "clip",
+            name,
+            warnings,
+            depthPrior: depthPrior ? depthPrior.id : null,
+        },
+        report: result.report,
+        overlay: buildOverlay(result, request),
+        video: {
+            widthPx: request.video.widthPx,
+            heightPx: request.video.heightPx,
+            fps: request.video.fps,
+        },
+        contactFrame: result.intermediates.contactFrame,
+        phases: result.report.phases,
+        truth: null,
+        accuracy: {
+            jointErrorMm: null,
+            verticalConfidence: result.intermediates.verticalConfidence,
+            mirrorConfidence: result.intermediates.mirrorConfidence,
+        },
+        legacy: null,
+        session: null,
+        elapsedMs: Date.now() - started,
+    };
+}
 
 };
 
@@ -1836,6 +1981,7 @@ function analyse(request, options = {}) {
         ballContactConfidence: ball.contactConfidence,
         ballImage: ball.track.map((t) => t.p),
         racketImage: tracked.frames.map((f) => f.racket?.head ?? null),
+        manualContactFrame: request.hints?.contactFrame ?? null,
     });
     layers.push(seg.report);
     // --- L10 --------------------------------------------------------------
@@ -5154,7 +5300,16 @@ function trackRacket(frames, opts) {
             `zwischen zwei Bildern über einen Meter zurück.`);
     }
     const coverage = frames.length ? observed / frames.length : 0;
-    if (coverage < 0.6) {
+    // Nothing supplied at all is a different situation from something supplied
+    // and not understood. A pose track from a general-purpose estimator contains
+    // no racket, and reporting that as a failure of this layer would block a
+    // verdict that the rest of the clip may well support.
+    const supplied = frames.some((f) => f.racket);
+    if (!supplied) {
+        notes.push("Keine Schlägerbeobachtungen im Material. Schlägerbezogene Größen entfallen; " +
+            "die übrige Analyse ist davon nicht betroffen.");
+    }
+    else if (coverage < 0.6) {
         notes.push(`Schläger nur in ${Math.round(coverage * 100)} % der Bilder erkannt.`);
     }
     const meanConf = (0, math_ts_1.clamp)((0, math_ts_1.mean)(out.map((f) => f.confidence)) ?? 0, 0, 1);
@@ -5162,7 +5317,7 @@ function trackRacket(frames, opts) {
         report: {
             id: "L7",
             name: "Schlägererkennung",
-            status: coverage > 0.7 ? "ok" : coverage > 0.3 ? "degraded" : "failed",
+            status: !supplied ? "skipped" : coverage > 0.7 ? "ok" : coverage > 0.3 ? "degraded" : "failed",
             quality: (0, math_ts_1.clamp)(coverage * (0.4 + 0.6 * meanConf), 0, 1),
             notes,
             diagnostics: {
@@ -5271,11 +5426,18 @@ function trackBall(frames, opts) {
             "Ballgeschwindigkeit und Abflugwinkel werden grundsätzlich nicht geschätzt.");
     }
     const meanScore = (0, math_ts_1.clamp)((0, math_ts_1.mean)(track.filter((t) => t.p).map((t) => t.score)) ?? 0, 0, 1);
+    // As in layer 7: a clip that never carried a ball track is not a clip whose
+    // ball track failed.
+    const supplied = frames.some((f) => f.ball);
+    if (!supplied) {
+        notes.push("Keine Ballbeobachtungen im Material. Der Treffpunkt muss daher aus der Bewegung oder " +
+            "aus einer Markierung stammen.");
+    }
     return {
         report: {
             id: "L8",
             name: "Ballerkennung",
-            status: coverage > 0.5 ? "ok" : coverage > 0.15 ? "degraded" : "failed",
+            status: !supplied ? "skipped" : coverage > 0.5 ? "ok" : coverage > 0.15 ? "degraded" : "failed",
             quality: (0, math_ts_1.clamp)(coverage * (0.4 + 0.6 * meanScore), 0, 1),
             notes,
             diagnostics: {
@@ -5321,7 +5483,7 @@ exports.BALL_UNOBSERVABLE = [
 __defs["src/layers/l09-segmentation.ts"] = function (exports, require, module) {
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.rateOf = exports.CONTACT_TOLERANCE_S = void 0;
+exports.rateOf = exports.MANUAL_CONTACT_WEIGHT = exports.CONTACT_TOLERANCE_S = void 0;
 exports.segment = segment;
 const math_ts_1 = require("../core/math.ts");
 const types_ts_1 = require("../core/types.ts");
@@ -5352,6 +5514,15 @@ const GROUNDSTROKE_LABELS = {
     follow_through: "Ausschwung",
     recovery: "Recovery",
 };
+/**
+ * Weight of a hand-marked contact frame.
+ *
+ * High, because a person watching the clip frame by frame is genuinely good at
+ * this — but below 1, because the mark is limited by the frame rate and by how
+ * carefully it was placed, and because it must not be able to outvote three
+ * agreeing automatic cues on its own.
+ */
+exports.MANUAL_CONTACT_WEIGHT = 0.8;
 function segment(poses, opts) {
     const n = poses.length;
     const side = (0, types_ts_1.dominantSide)(opts.hand);
@@ -5443,13 +5614,18 @@ function segment(poses, opts) {
             proximityQuality = (0, math_ts_1.clamp)(1 - best / 220, 0, 1) * 0.85;
         }
     }
+    const manualCue = opts.manualContactFrame !== null && opts.manualContactFrame !== undefined && opts.manualContactFrame >= 0
+        ? opts.manualContactFrame
+        : null;
     const anchor = ballCue !== null && opts.ballContactConfidence > 0.4
         ? ballCue
         : proximityFrame !== null && proximityQuality > 0.4
             ? proximityFrame
-            : racketApex
-                ? racketApex.index
-                : null;
+            : manualCue !== null
+                ? manualCue
+                : racketApex
+                    ? racketApex.index
+                    : null;
     const windowFrames = Math.max(4, Math.round(0.16 / opts.dtScene));
     const localPeak = (xs, sign) => {
         if (anchor === null)
@@ -5461,6 +5637,7 @@ function segment(poses, opts) {
         const pk = (0, math_ts_1.refinedPeak)(xs.slice(lo, hi + 1).map((v) => sign * v));
         return pk ? pk.index + lo : null;
     };
+    cues.push({ id: "Von Hand markiert", frame: manualCue, weight: manualCue === null ? 0 : exports.MANUAL_CONTACT_WEIGHT });
     cues.push({ id: "Ball: Geschwindigkeitssprung", frame: ballCue, weight: opts.ballContactConfidence });
     cues.push({ id: "Ball am Schlägerkopf", frame: proximityFrame, weight: proximityQuality });
     cues.push({
@@ -5468,18 +5645,30 @@ function segment(poses, opts) {
         frame: racketApex ? racketApex.index : null,
         weight: opts.stroke === "serve" && racketZ.filter((v) => v !== null).length > n * 0.5 ? 0.55 : 0.1,
     });
+    // Arm extension, measured to the racket head where the racket is tracked and
+    // to the wrist where it is not. The wrist version is the weaker cue — the
+    // racket keeps extending after the wrist stops — but it needs nothing beyond
+    // the pose, which is all a markerless clip supplies.
+    let reachSource = "Schlägerkopf";
     const handToShoulder = poses.map((p, i) => {
         const sh = p[(0, types_ts_1.sided)("shoulder", side)];
         const head = opts.racket[i]?.head;
-        if (!sh || !head)
+        if (!sh)
             return null;
-        return (0, math_ts_1.norm3)((0, math_ts_1.sub3)(head, sh.p));
+        if (head)
+            return (0, math_ts_1.norm3)((0, math_ts_1.sub3)(head, sh.p));
+        const wrist = p[(0, types_ts_1.sided)("wrist", side)];
+        if (!wrist)
+            return null;
+        reachSource = "Handgelenk";
+        return (0, math_ts_1.norm3)((0, math_ts_1.sub3)(wrist.p, sh.p));
     });
+    const racketTracked = opts.racket.filter((r) => r.head).length > n * 0.5;
     const reachFrame = localPeak(filled(handToShoulder), 1);
     cues.push({
-        id: "Maximale Armstreckung",
+        id: `Maximale Armstreckung (${reachSource})`,
         frame: reachFrame,
-        weight: handToShoulder.filter((v) => v !== null).length > n * 0.5 ? 0.6 : 0.15,
+        weight: handToShoulder.filter((v) => v !== null).length > n * 0.5 ? (racketTracked ? 0.6 : 0.4) : 0.15,
     });
     const racketSpeed = opts.racket.map((r) => r.headSpeedMs);
     if (racketSpeed.filter((v) => v !== null).length > n * 0.4) {
@@ -5535,7 +5724,8 @@ function segment(poses, opts) {
         }
     }
     else {
-        notes.push("Kein Treffpunkt bestimmbar: weder Ball noch Schläger liefern ein auswertbares Signal.");
+        notes.push("Kein Treffpunkt bestimmbar: weder Ball noch Schläger liefern ein auswertbares Signal. " +
+            "Ohne Treffpunkt ist keine der zeitbezogenen Größen messbar — er kann von Hand markiert werden.");
     }
     // --- Events -----------------------------------------------------------
     const events = {};
@@ -5683,7 +5873,7 @@ exports.rateOf = rateOf;
 __defs["src/layers/l10-features.ts"] = function (exports, require, module) {
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.unwrapDelta = exports.PLAUSIBLE_RANGE = exports.ROTATION_OBSERVABLE_COVERAGE_MIN = exports.GIRDLE_OBSERVABLE_MIN = exports.ROTATION_CUTOFF_HZ = exports.METHOD_BIAS = void 0;
+exports.unwrapDelta = exports.PLAUSIBLE_RANGE = exports.ROTATION_OBSERVABLE_COVERAGE_MIN = exports.GIRDLE_OBSERVABLE_MIN = exports.MIRROR_RESOLVED = exports.ROTATION_CUTOFF_HZ = exports.METHOD_BIAS = void 0;
 exports.methodBiasFor = methodBiasFor;
 exports.extractFeatures = extractFeatures;
 exports.girdleVisibility = girdleVisibility;
@@ -5748,6 +5938,17 @@ const MC_SEQUENCE_SAMPLES = 48;
 exports.ROTATION_CUTOFF_HZ = 8;
 /** The four joints every rotation metric reads. */
 const GIRDLE_JOINTS = ["hipL", "hipR", "shoulderL", "shoulderR"];
+/**
+ * Mirror confidence at or above which the depth direction counts as resolved.
+ *
+ * Below it, the reconstruction is only weakly constrained out of the image
+ * plane — and a measurement that leans on the depth direction is then a guess
+ * with a plausible interval around it, which is the most dangerous thing this
+ * system can produce. The geometric solve on its own reports about 0.35 here,
+ * a learned depth prior lifts it to about 0.9, and the gap between those two is
+ * exactly the gap between a number that can be quoted and one that cannot.
+ */
+exports.MIRROR_RESOLVED = 0.7;
 function extractFeatures(poses, opts) {
     const rng = new math_ts_1.Rng(opts.seed ?? 1312);
     const seg = opts.segmentation;
@@ -5831,6 +6032,25 @@ function extractFeatures(poses, opts) {
             extra.push(`Die Unsicherheit dieser Größe wird um den Faktor ${depthRatio.toFixed(1)} von der ` +
                 "Tiefenrichtung bestimmt — aus dieser Kameraperspektive nur eingeschränkt bestimmbar.");
         }
+        // How far this measurement leans on a depth direction that may not be
+        // resolved at all.
+        //
+        // `depthRatio` says how much of the metric's uncertainty comes from the
+        // depth axis; `mirrorConfidence` says whether the reconstruction knows
+        // which way that axis runs. Neither alone is enough. A vertical distance
+        // survives an unresolved depth direction; a joint angle does not, and
+        // without this gate it is reported at full confidence with an interval
+        // that reflects only the pixel noise — the exact failure this system was
+        // built to remove, reappearing one layer further in.
+        const depthDirectionTrust = (0, math_ts_1.clamp)(opts.mirrorConfidence / exports.MIRROR_RESOLVED, 0, 1);
+        const depthDependence = depthRatio === null ? 0 : (0, math_ts_1.clamp)((depthRatio - 1.25) / 1.25, 0, 1);
+        const chirality = 1 - depthDependence * (1 - depthDirectionTrust);
+        if (chirality < 0.999) {
+            extra.push("Die Tiefenrichtung der Rekonstruktion ist nicht gesichert " +
+                `(${Math.round(opts.mirrorConfidence * 100)} %). Da diese Größe von ihr abhängt, ` +
+                "ist der Wert entsprechend abgewertet — ein gelernter Tiefen-Prior oder eine " +
+                "kalibrierte zweite Kamera hebt ihn wieder an.");
+        }
         // The reconstruction's overall scale error is common to every joint, so it
         // cancels in angles and in ratios taken against the player's own
         // dimensions, and acts in full on absolute lengths. Adding it per joint
@@ -5855,7 +6075,11 @@ function extractFeatures(poses, opts) {
             unit,
             observability,
             provenance: ["L6", "L9", "L10"],
-            trust: [...trust, { label: "Güte der Rekonstruktion", value: opts.upstreamQuality }],
+            trust: [
+                ...trust,
+                { label: "Güte der Rekonstruktion", value: opts.upstreamQuality },
+                { label: "Eindeutigkeit der Tiefenrichtung", value: chirality },
+            ],
             notes: [
                 ...extra,
                 ...(unit === "m"
@@ -7128,7 +7352,22 @@ function assessQuality(input) {
         racket: 0.09,
         ball: 0.05,
     };
-    const weighted = components.reduce((s, c) => s + c.score * (weights[c.id] ?? 0), 0);
+    const layerOf = {
+        pose: "L4",
+        reconstruction: "L6",
+        racket: "L7",
+        ball: "L8",
+        segmentation: "L9",
+        calibration: "L2",
+    };
+    for (const c of components) {
+        c.applicable = byId.get(layerOf[c.id] ?? "")?.status !== "skipped";
+    }
+    const applicable = components.filter((c) => c.applicable !== false);
+    const weightSum = applicable.reduce((s, c) => s + (weights[c.id] ?? 0), 0);
+    const weighted = weightSum > 0
+        ? applicable.reduce((s, c) => s + c.score * (weights[c.id] ?? 0), 0) / weightSum
+        : 0;
     const criticalIds = new Set(["pose", "reconstruction", "segmentation"]);
     const worstCritical = Math.min(...components.filter((c) => criticalIds.has(c.id)).map((c) => c.score));
     const overall = Math.round((0, math_ts_1.clamp)(Math.min(weighted, 35 + 0.65 * worstCritical), 0, 100));
@@ -8995,6 +9234,532 @@ function legacyServeScore(rigName, preset, precomputed) {
 
 };
 
+__defs["src/io/clip.ts"] = function (exports, require, module) {
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.DEFAULT_DEPTH_SIGMA_M = exports.MIN_KEYPOINT_SCORE = exports.KEYPOINT_LAYOUTS = exports.CLIP_VERSION = exports.CLIP_FORMAT = void 0;
+exports.parseClip = parseClip;
+exports.serialiseClip = serialiseClip;
+const camera_ts_1 = require("../core/camera.ts");
+const math_ts_1 = require("../core/math.ts");
+const anthropometry_ts_1 = require("../fixtures/anthropometry.ts");
+const l04_pose_ts_1 = require("../layers/l04-pose.ts");
+const types_ts_1 = require("../core/types.ts");
+/**
+ * The clip file: how footage that was not generated by the fixtures gets in.
+ *
+ * The pipeline does not start at pixels. Layer 3 and layer 4 are adapters over
+ * a pose estimator, and the estimator itself is deliberately not part of this
+ * codebase — it is a large model with its own release cycle, and pinning one
+ * inside the measurement chain would make the chain untestable. What the
+ * pipeline needs is a per-frame set of 2D joints with detector scores, which
+ * every current estimator produces.
+ *
+ * This module defines that hand-off as a plain JSON file, maps the common
+ * keypoint layouts onto the tennis skeleton, and says plainly what is missing
+ * when something is missing. Two things beyond the joints matter enough to be
+ * part of the format:
+ *
+ *   - the contact frame, because no bare pose track marks it and every timing
+ *     measurement is referenced to it;
+ *   - a depth track, because without one the reconstruction cannot resolve the
+ *     depth direction and the report will — correctly — decline to quote any
+ *     angle. See `MIRROR_RESOLVED` in layer 10.
+ */
+exports.CLIP_FORMAT = "baseline-vision-clip";
+exports.CLIP_VERSION = 1;
+/* ------------------------------------------------------------------ */
+/* Keypoint layouts                                                    */
+/* ------------------------------------------------------------------ */
+/**
+ * Keypoint orders of the estimators people actually run, mapped onto the
+ * tennis skeleton. `null` means the layout has a point there that this
+ * skeleton has no use for — an eye, an ear — not that something is wrong.
+ */
+exports.KEYPOINT_LAYOUTS = {
+    /** COCO-17: the output of YOLO-pose, RTMPose-COCO, OpenPose body_25 subset. */
+    coco17: [
+        "head", // nose, taken as the head landmark; see `headFromFace`
+        null, // left eye
+        null, // right eye
+        null, // left ear
+        null, // right ear
+        "shoulderL",
+        "shoulderR",
+        "elbowL",
+        "elbowR",
+        "wristL",
+        "wristR",
+        "hipL",
+        "hipR",
+        "kneeL",
+        "kneeR",
+        "ankleL",
+        "ankleR",
+    ],
+    /** Halpe-26: COCO-17 plus head, neck, hip centre and the foot points. */
+    halpe26: [
+        null, // nose
+        null,
+        null,
+        null,
+        null,
+        "shoulderL",
+        "shoulderR",
+        "elbowL",
+        "elbowR",
+        "wristL",
+        "wristR",
+        "hipL",
+        "hipR",
+        "kneeL",
+        "kneeR",
+        "ankleL",
+        "ankleR",
+        "head",
+        "neck",
+        "pelvis",
+        "footL", // left big toe
+        "footR", // right big toe
+        null, // left small toe
+        null, // right small toe
+        null, // left heel
+        null, // right heel
+    ],
+    /** MediaPipe Pose, 33 landmarks. */
+    mediapipe33: [
+        "head", // nose
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        "shoulderL",
+        "shoulderR",
+        "elbowL",
+        "elbowR",
+        "wristL",
+        "wristR",
+        null, // left pinky
+        null, // right pinky
+        "handL", // left index
+        "handR", // right index
+        null, // left thumb
+        null, // right thumb
+        "hipL",
+        "hipR",
+        "kneeL",
+        "kneeR",
+        "ankleL",
+        "ankleR",
+        null, // left heel
+        null, // right heel
+        "footL", // left foot index
+        "footR", // right foot index
+    ],
+    /** This project's own 22 joints, in `JOINTS` order. */
+    native: types_ts_1.JOINTS,
+};
+/**
+ * Score below which a reported keypoint is treated as absent.
+ *
+ * Some estimators — MediaPipe among them — emit a landmark for every slot in
+ * every frame, marking the ones they did not find with a visibility near zero
+ * rather than leaving them out. Read literally, an unfound joint arrives as a
+ * confident-looking point at the image origin, which drags the whole pose
+ * towards the top-left corner and quietly ruins the reconstruction. Dropping
+ * them costs coverage, which the report states; keeping them costs the truth.
+ */
+exports.MIN_KEYPOINT_SCORE = 0.15;
+/** Published monocular lifters land around 40–60 mm; claiming better is a claim. */
+exports.DEFAULT_DEPTH_SIGMA_M = 0.055;
+/* ------------------------------------------------------------------ */
+/* Parsing                                                            */
+/* ------------------------------------------------------------------ */
+function parseClip(input, options = {}) {
+    const clip = input;
+    const warnings = [];
+    if (!clip || typeof clip !== "object")
+        throw new Error("Die Clip-Datei ist kein Objekt.");
+    if (clip.format !== exports.CLIP_FORMAT) {
+        throw new Error(`Unbekanntes Format "${String(clip.format)}"; erwartet "${exports.CLIP_FORMAT}".`);
+    }
+    if (clip.version !== exports.CLIP_VERSION) {
+        throw new Error(`Clip-Version ${String(clip.version)} wird nicht unterstützt (erwartet ${exports.CLIP_VERSION}).`);
+    }
+    if (!Array.isArray(clip.frames) || clip.frames.length === 0) {
+        throw new Error("Die Clip-Datei enthält keine Bilder.");
+    }
+    if (!clip.video || !clip.video.fps || !clip.video.widthPx || !clip.video.heightPx) {
+        throw new Error("video.fps, video.widthPx und video.heightPx sind Pflichtangaben.");
+    }
+    if (!clip.player || !clip.player.heightCm || !clip.player.hand) {
+        throw new Error("player.heightCm und player.hand sind Pflichtangaben — ohne Körpergröße gibt es keinen Maßstab.");
+    }
+    const layout = Array.isArray(clip.keypointLayout)
+        ? clip.keypointLayout
+        : exports.KEYPOINT_LAYOUTS[clip.keypointLayout];
+    if (!layout) {
+        throw new Error(`Unbekanntes Keypoint-Layout "${String(clip.keypointLayout)}". Bekannt sind: ` +
+            Object.keys(exports.KEYPOINT_LAYOUTS).join(", ") + ".");
+    }
+    const fps = clip.video.fps;
+    const captureFps = clip.video.captureFps ?? fps;
+    const minScore = options.minScore ?? exports.MIN_KEYPOINT_SCORE;
+    const kept = [];
+    let dropped = 0;
+    let offered = 0;
+    const frames = clip.frames.map((frame, index) => {
+        if (!Array.isArray(frame.keypoints)) {
+            throw new Error(`Bild ${index}: keypoints fehlt oder ist keine Liste.`);
+        }
+        if (frame.keypoints.length !== layout.length) {
+            throw new Error(`Bild ${index}: ${frame.keypoints.length} Keypoints, das Layout erwartet ${layout.length}.`);
+        }
+        const pose2d = {};
+        const present = new Set();
+        layout.forEach((joint, k) => {
+            if (!joint)
+                return;
+            const kp = frame.keypoints[k];
+            if (!kp)
+                return;
+            offered++;
+            const [x, y, score] = kp;
+            if (!Number.isFinite(x) || !Number.isFinite(y))
+                return;
+            if (clampScore(score) < minScore) {
+                dropped++;
+                return;
+            }
+            pose2d[joint] = { p: { x, y }, score: clampScore(score), occluded: kp[3] === 1 };
+            present.add(joint);
+        });
+        kept.push(present);
+        const observation = {
+            index,
+            t: frame.t ?? index / fps,
+            pose2d,
+        };
+        if (frame.racket) {
+            observation.racket = {
+                grip: { x: frame.racket.grip[0], y: frame.racket.grip[1] },
+                head: { x: frame.racket.head[0], y: frame.racket.head[1] },
+                score: clampScore(frame.racket.score ?? 0.8),
+            };
+        }
+        if (frame.ball) {
+            observation.ball = {
+                p: { x: frame.ball.x, y: frame.ball.y },
+                radiusPx: frame.ball.radiusPx ?? 6,
+                score: clampScore(frame.ball.score ?? 0.8),
+            };
+        }
+        return observation;
+    });
+    const player = {
+        id: clip.player.id ?? "clip",
+        displayName: clip.player.displayName ?? clip.player.id ?? "Spieler",
+        heightCm: clip.player.heightCm,
+        hand: clip.player.hand,
+        backhand: clip.player.backhand ?? "two_handed",
+        level: clip.player.level,
+        ageYears: clip.player.ageYears,
+    };
+    const request = {
+        video: {
+            fps,
+            captureFps,
+            widthPx: clip.video.widthPx,
+            heightPx: clip.video.heightPx,
+            durationS: frames.length / fps,
+            hfovDeg: clip.video.hfovDeg,
+        },
+        player,
+        stroke: clip.stroke ?? "serve",
+        frames,
+        hints: {
+            cameraPlacement: clip.hints?.cameraPlacement,
+            cameraHeightM: clip.hints?.cameraHeightM,
+            contactFrame: clip.contactFrame,
+        },
+        seed: options.seed ?? 42,
+    };
+    /* --- what the file did not bring ---------------------------------- */
+    if (clip.video.hfovDeg === undefined) {
+        warnings.push("Keine Brennweite angegeben. Sie wird geschätzt; das vergrößert die Unsicherheit jeder " +
+            "Längenangabe. Der Wert steht in den EXIF-Daten der Kamera oder im Datenblatt des Objektivs.");
+    }
+    if (clip.contactFrame === undefined && !clip.frames.some((f) => f.ball || f.racket)) {
+        warnings.push("Weder Treffpunkt markiert noch Ball oder Schläger getrackt. Der Treffpunkt ist der Bezugspunkt " +
+            "jeder Zeitmessung — ohne ihn bleiben die meisten Kenngrößen unbestimmt.");
+    }
+    const feetSeen = frames.some((f) => f.pose2d.footL || f.pose2d.footR);
+    if (!feetSeen) {
+        warnings.push("Das Keypoint-Layout enthält keine Fußpunkte. Landung und Bodenkontakt lassen sich damit nur " +
+            "über die Sprunggelenke abschätzen.");
+    }
+    if (dropped > offered * 0.2) {
+        warnings.push(`${Math.round((dropped / Math.max(1, offered)) * 100)} % der gemeldeten Keypoints lagen unter der ` +
+            `Score-Schwelle von ${minScore} und wurden als "nicht gesehen" behandelt.`);
+    }
+    const hasDepth = clip.frames.some((f) => Array.isArray(f.depth));
+    if (!hasDepth) {
+        warnings.push("Keine Tiefeninformation im Clip. Die Rekonstruktion löst die Tiefenrichtung dann nicht auf, " +
+            "und der Bericht wird keine Winkel zitieren. Abhilfe: ein monokulares 3D-Modell " +
+            "(MotionBERT, VideoPose3D) über dieselben Bilder laufen lassen und dessen z-Werte mitgeben.");
+    }
+    const depthPrior = hasDepth ? buildDepthPrior(clip, layout, request, options, warnings, kept) : undefined;
+    return { request, depthPrior, warnings };
+}
+const clampScore = (s) => (Number.isFinite(s) ? Math.max(0, Math.min(1, s)) : 0.5);
+/* ------------------------------------------------------------------ */
+/* Depth                                                              */
+/* ------------------------------------------------------------------ */
+/**
+ * Turns a lifter's depth track into the prior layer 6 consumes.
+ *
+ * Absolute depth is used as it stands. Root-relative depth — what a monocular
+ * lifter normally emits — has to be anchored to a distance first, and the
+ * anchor comes from weak perspective: a segment of known 3D length L that
+ * covers p pixels sits at roughly f·L/p. Taking the median over the long,
+ * reliably detected segments makes the estimate robust to one bad joint.
+ */
+function buildDepthPrior(clip, layout, request, options, warnings, kept) {
+    const mode = options.depthMode ?? "rootRelative";
+    const sigma = options.depthSigmaM ?? exports.DEFAULT_DEPTH_SIGMA_M;
+    const byFrame = [];
+    const focalPx = (0, camera_ts_1.focalFromHfov)(clip.video.hfovDeg ?? 60, clip.video.widthPx);
+    if (clip.video.hfovDeg === undefined && mode === "rootRelative") {
+        warnings.push("Die Tiefe wurde ohne bekannte Brennweite verankert (Annahme: 60° horizontal). " +
+            "Der Abstand zur Kamera ist damit nur grob bestimmt.");
+    }
+    clip.frames.forEach((frame, index) => {
+        const map = {};
+        if (!Array.isArray(frame.depth)) {
+            byFrame.push(map);
+            return;
+        }
+        const relative = {};
+        layout.forEach((joint, k) => {
+            if (!joint)
+                return;
+            // A depth for a joint the detector did not actually see is the model's
+            // guess about a point that is not there.
+            if (!kept[index]?.has(joint))
+                return;
+            const z = frame.depth?.[k];
+            if (z === null || z === undefined || !Number.isFinite(z))
+                return;
+            relative[joint] = z;
+        });
+        deriveDepths(relative);
+        if (mode === "absolute") {
+            byFrame.push(relative);
+            return;
+        }
+        const anchor = anchorDepth(request.frames[index], relative, focalPx, request.player.heightCm / 100);
+        if (anchor === null) {
+            byFrame.push(map);
+            return;
+        }
+        for (const joint of Object.keys(relative)) {
+            map[joint] = anchor + relative[joint];
+        }
+        byFrame.push(map);
+    });
+    const covered = byFrame.filter((m) => Object.keys(m).length > 0).length;
+    if (covered < clip.frames.length * 0.8) {
+        warnings.push(`Tiefeninformation liegt nur für ${Math.round((covered / clip.frames.length) * 100)} % der Bilder vor.`);
+    }
+    return {
+        id: `clip:${mode === "absolute" ? "absolute Tiefe" : "lernbasiert, verankert"}(sigma=${Math.round(sigma * 1000)}mm)`,
+        depthM(frameIndex, joint) {
+            return byFrame[frameIndex]?.[joint] ?? null;
+        },
+        sigmaM() {
+            return sigma;
+        },
+    };
+}
+/**
+ * Fills in the trunk and hand depths a lifter does not emit.
+ *
+ * Monocular lifters output the detector's own joint set — shoulders, hips,
+ * limbs — and nothing between them. Layer 4 builds pelvis, sternum, neck,
+ * spine, thorax and the hand centres from those in the image; their depths have
+ * to be built the same way, from the same landmarks, or the reconstruction is
+ * handed a skeleton whose root has no depth at all. The root is what the whole
+ * depth chain hangs from, so leaving it out costs far more than the small
+ * approximation of interpolating it.
+ */
+function deriveDepths(depths) {
+    const mid = (a, b) => {
+        const za = depths[a];
+        const zb = depths[b];
+        return za === undefined || zb === undefined ? undefined : (za + zb) / 2;
+    };
+    const hipMid = mid("hipL", "hipR");
+    const shoulderMid = mid("shoulderL", "shoulderR");
+    if (depths.pelvis === undefined && hipMid !== undefined)
+        depths.pelvis = hipMid;
+    if (depths.sternum === undefined && shoulderMid !== undefined)
+        depths.sternum = shoulderMid;
+    if (depths.neck === undefined && shoulderMid !== undefined) {
+        depths.neck =
+            hipMid === undefined
+                ? shoulderMid
+                : shoulderMid + (shoulderMid - hipMid) * l04_pose_ts_1.NECK_ABOVE_STERNUM;
+    }
+    if (hipMid !== undefined && shoulderMid !== undefined) {
+        const lerp = (t) => hipMid + (shoulderMid - hipMid) * t;
+        if (depths.spine === undefined)
+            depths.spine = lerp(anthropometry_ts_1.TRUNK_LANDMARK_FRACTION.spine);
+        if (depths.thorax === undefined)
+            depths.thorax = lerp(anthropometry_ts_1.TRUNK_LANDMARK_FRACTION.thorax);
+    }
+    for (const side of ["L", "R"]) {
+        const hand = `hand${side}`;
+        const wrist = depths[`wrist${side}`];
+        const elbow = depths[`elbow${side}`];
+        if (depths[hand] === undefined && wrist !== undefined && elbow !== undefined) {
+            depths[hand] = wrist + (wrist - elbow) * 0.28;
+        }
+    }
+}
+/**
+ * Distance from the camera to the player's root, from weak perspective.
+ *
+ * Uses the segments whose 3D length the lifter itself supplies, so no
+ * anthropometric table is needed: the ratio of a segment's metric length to its
+ * pixel length is the scale, and the scale times the focal length is the depth.
+ */
+function anchorDepth(frame, relative, focalPx, heightM) {
+    if (!frame)
+        return null;
+    const pairs = [
+        ["shoulderL", "hipL"],
+        ["shoulderR", "hipR"],
+        ["hipL", "kneeL"],
+        ["hipR", "kneeR"],
+        ["kneeL", "ankleL"],
+        ["kneeR", "ankleR"],
+        ["shoulderL", "shoulderR"],
+        ["hipL", "hipR"],
+    ];
+    const estimates = [];
+    for (const [a, b] of pairs) {
+        const pa = frame.pose2d[a];
+        const pb = frame.pose2d[b];
+        const za = relative[a];
+        const zb = relative[b];
+        if (!pa || !pb || za === undefined || zb === undefined)
+            continue;
+        const px = Math.hypot(pa.p.x - pb.p.x, pa.p.y - pb.p.y);
+        if (px < 8)
+            continue;
+        // In-plane length of the segment in metres, from the lifter's own 3D:
+        // the full 3D length minus the part that runs along the camera axis.
+        const full = segmentLengthM(a, b, heightM);
+        const along = Math.abs(za - zb);
+        const inPlane = Math.sqrt(Math.max(1e-4, full * full - along * along));
+        estimates.push((focalPx * inPlane) / px);
+    }
+    return estimates.length ? ((0, math_ts_1.median)(estimates) ?? null) : null;
+}
+/**
+ * Segment lengths as fractions of stature, from Winter's anthropometric table.
+ * Only the segments `anchorDepth` uses are listed.
+ */
+const SEGMENT_FRACTION = {
+    "shoulderL|hipL": 0.288,
+    "shoulderR|hipR": 0.288,
+    "hipL|kneeL": 0.245,
+    "hipR|kneeR": 0.245,
+    "kneeL|ankleL": 0.246,
+    "kneeR|ankleR": 0.246,
+    "shoulderL|shoulderR": 0.259,
+    "hipL|hipR": 0.191,
+};
+const segmentLengthM = (a, b, heightM) => (SEGMENT_FRACTION[`${a}|${b}`] ?? 0.25) * heightM;
+/* ------------------------------------------------------------------ */
+/* Writing                                                            */
+/* ------------------------------------------------------------------ */
+/**
+ * Writes a request back out as a clip file.
+ *
+ * Used by the round-trip test — a format that cannot reproduce what it read is
+ * not a format — and to export a fixture clip as a worked example of the shape
+ * a real one has to have.
+ */
+function serialiseClip(request, extra = {}) {
+    const layout = exports.KEYPOINT_LAYOUTS.native;
+    return {
+        format: exports.CLIP_FORMAT,
+        version: exports.CLIP_VERSION,
+        video: {
+            fps: request.video.fps,
+            captureFps: request.video.captureFps,
+            widthPx: request.video.widthPx,
+            heightPx: request.video.heightPx,
+            hfovDeg: request.video.hfovDeg,
+        },
+        player: {
+            id: request.player.id,
+            displayName: request.player.displayName,
+            heightCm: request.player.heightCm,
+            hand: request.player.hand,
+            backhand: request.player.backhand,
+            level: request.player.level,
+            ageYears: request.player.ageYears,
+        },
+        stroke: request.stroke,
+        keypointLayout: "native",
+        contactFrame: extra.contactFrame ?? request.hints?.contactFrame,
+        hints: {
+            cameraPlacement: request.hints?.cameraPlacement,
+            cameraHeightM: request.hints?.cameraHeightM,
+        },
+        source: extra.source,
+        frames: request.frames.map((frame, index) => {
+            const keypoints = layout.map((joint) => {
+                const kp = joint ? frame.pose2d[joint] : null;
+                if (!kp)
+                    return null;
+                return (kp.occluded ? [kp.p.x, kp.p.y, kp.score, 1] : [kp.p.x, kp.p.y, kp.score]);
+            });
+            const out = { t: frame.t, keypoints };
+            if (frame.racket) {
+                out.racket = {
+                    grip: [frame.racket.grip.x, frame.racket.grip.y],
+                    head: [frame.racket.head.x, frame.racket.head.y],
+                    score: frame.racket.score,
+                };
+            }
+            if (frame.ball) {
+                out.ball = {
+                    x: frame.ball.p.x,
+                    y: frame.ball.p.y,
+                    radiusPx: frame.ball.radiusPx,
+                    score: frame.ball.score,
+                };
+            }
+            const depth = extra.depth?.[index];
+            if (depth) {
+                out.depth = layout.map((joint) => (joint && depth[joint] !== undefined ? depth[joint] : null));
+            }
+            return out;
+        }),
+    };
+}
+
+};
+
 var __entry = __require("playground/entry.ts");
 globalThis["BaselineVision"] = __entry;
 })();
@@ -9020,7 +9785,7 @@ globalThis["BaselineVision"] = __entry;
   let worker = null;
   try {
     const blob = new Blob(
-      [engineSource + "\nself.onmessage=function(e){try{var r=self.BaselineVision.run(e.data.input,function(l,f){self.postMessage({type:'progress',label:l,fraction:f});});self.postMessage({type:'done',id:e.data.id,result:r});}catch(err){self.postMessage({type:'error',id:e.data.id,message:String(err&&err.stack||err)});}};"],
+      [engineSource + "\nself.onmessage=function(e){try{var p=function(l,f){self.postMessage({type:'progress',label:l,fraction:f});};var r=e.data.clip?self.BaselineVision.runClip(e.data.clip,e.data.name,{},p):self.BaselineVision.run(e.data.input,p);self.postMessage({type:'done',id:e.data.id,result:r});}catch(err){self.postMessage({type:'error',id:e.data.id,message:String(err&&err.message||err)});}};"],
       { type: "text/javascript" },
     );
     worker = new Worker(URL.createObjectURL(blob));
@@ -9052,6 +9817,9 @@ globalThis["BaselineVision"] = __entry;
     playing: false,
     orbit: { azimuth: -38, elevation: 16 },
     runId: 0,
+    /** A clip file the reader dropped in; when set, the controls are inert. */
+    clip: null,
+    clipName: "",
   };
 
   const LEVEL_FOR_PRESET = {
@@ -9222,9 +9990,67 @@ globalThis["BaselineVision"] = __entry;
       updateFrameLabel();
     });
 
+    setupClipLoading();
     updatePresetHint();
     updateCaptureHint();
     setupOrbit();
+  }
+
+  function setupClipLoading() {
+    const zone = $("dropzone");
+    const input = $("clipfile");
+
+    const load = (file) => {
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = () => {
+        try {
+          state.clip = JSON.parse(String(reader.result));
+        } catch (err) {
+          fail("Die Datei ist kein gültiges JSON: " + String((err && err.message) || err));
+          return;
+        }
+        state.clipName = file.name;
+        $("clipname").textContent = file.name;
+        $("clipdepth").textContent =
+          (state.clip.frames ? state.clip.frames.length + " Bilder" : "unbekannte Länge") +
+          (state.clip.contactFrame !== undefined
+            ? " · Treffpunkt bei " + state.clip.contactFrame
+            : " · kein Treffpunkt markiert");
+        $("clipbadge").dataset.active = "true";
+        $("synthetic").disabled = true;
+        runAnalysis();
+      };
+      reader.onerror = () => fail("Die Datei konnte nicht gelesen werden.");
+      reader.readAsText(file);
+    };
+
+    input.addEventListener("change", () => load(input.files && input.files[0]));
+    ["dragenter", "dragover"].forEach((type) =>
+      zone.addEventListener(type, (e) => {
+        e.preventDefault();
+        zone.dataset.over = "true";
+      }),
+    );
+    ["dragleave", "drop"].forEach((type) =>
+      zone.addEventListener(type, (e) => {
+        e.preventDefault();
+        zone.dataset.over = "false";
+      }),
+    );
+    zone.addEventListener("drop", (e) => {
+      const file = e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0];
+      load(file);
+    });
+
+    $("clipclear").addEventListener("click", () => {
+      state.clip = null;
+      state.clipName = "";
+      $("clipbadge").dataset.active = "false";
+      $("synthetic").disabled = false;
+      input.value = "";
+      runAnalysis();
+    });
   }
 
   const PRESET_HINTS = {
@@ -9262,7 +10088,8 @@ globalThis["BaselineVision"] = __entry;
   function runAnalysis() {
     const id = ++state.runId;
     const input = Object.assign({}, state.input);
-    setBusy(true, "Aufnahme wird gerendert", 0.02);
+    const clip = state.clip;
+    setBusy(true, clip ? "Clip wird eingelesen" : "Aufnahme wird gerendert", 0.02);
 
     if (worker) {
       worker.onmessage = (event) => {
@@ -9273,13 +10100,12 @@ globalThis["BaselineVision"] = __entry;
         }
         if (message.id !== id) return;
         if (message.type === "error") {
-          setBusy(false, "Fehler");
-          console.error(message.message);
+          fail(message.message);
           return;
         }
         accept(message.result);
       };
-      worker.postMessage({ id, input });
+      worker.postMessage({ id, input, clip, name: state.clipName });
       return;
     }
 
@@ -9287,13 +10113,27 @@ globalThis["BaselineVision"] = __entry;
     requestAnimationFrame(() =>
       requestAnimationFrame(() => {
         try {
-          accept(Engine.run(input));
+          accept(clip ? Engine.runClip(clip, state.clipName) : Engine.run(input));
         } catch (err) {
-          setBusy(false, "Fehler");
-          console.error(err);
+          fail(String((err && err.message) || err));
         }
       }),
     );
+  }
+
+  function fail(message) {
+    setBusy(false, "Datei nicht lesbar");
+    const host = $("clip-warnings");
+    $("clip-panel").hidden = false;
+    clear(host);
+    const card = el("div", "card");
+    card.dataset.tone = "alert";
+    card.appendChild(el("h3", null, "Die Datei konnte nicht ausgewertet werden"));
+    const p = el("p", null, message);
+    p.style.fontSize = "0.83rem";
+    p.style.color = "var(--ink-soft)";
+    card.appendChild(p);
+    host.appendChild(card);
   }
 
   function accept(result) {
@@ -9318,9 +10158,42 @@ globalThis["BaselineVision"] = __entry;
     renderNotMeasurable(report);
     renderFindings(report);
     renderSession(result.session);
-    renderLegacy(result, report);
+    renderOrigin(result);
     renderPipeline(report);
-    renderTruth(result, report);
+
+    // A real clip has no ground truth and no comparable legacy run: the old
+    // method was only ever given perfect digitisation, which is what made the
+    // comparison fair to it.
+    $("legacy-panel").hidden = !result.legacy;
+    $("truth-panel").hidden = !result.truth;
+    if (result.legacy) renderLegacy(result, report);
+    if (result.truth) renderTruth(result, report);
+  }
+
+  function renderOrigin(result) {
+    const panel = $("clip-panel");
+    if (result.origin.kind !== "clip") {
+      panel.hidden = true;
+      return;
+    }
+    panel.hidden = false;
+    $("clip-aside").textContent = result.origin.depthPrior
+      ? "Tiefenspur: " + result.origin.depthPrior
+      : "ohne Tiefenspur";
+    const host = $("clip-warnings");
+    clear(host);
+    if (!result.origin.warnings.length) {
+      host.appendChild(el("p", "empty", "Die Datei enthält alles, was die Auswertung braucht."));
+      return;
+    }
+    result.origin.warnings.forEach((warning) => {
+      const card = el("div", "card");
+      card.dataset.tone = "warn";
+      const p = el("p", null, warning);
+      p.style.fontSize = "0.85rem";
+      card.appendChild(p);
+      host.appendChild(card);
+    });
   }
 
   function renderVerdict(report) {
@@ -9380,12 +10253,15 @@ globalThis["BaselineVision"] = __entry;
       row.appendChild(el("span", null, component.label));
       const track = el("span", "track");
       const fill = el("i");
-      fill.style.width = Math.max(0, Math.min(100, component.score)) + "%";
+      // A component the material never contained is not a bad score, and the
+      // bar must not draw it as one.
+      const missing = component.applicable === false;
+      fill.style.width = missing ? "0%" : Math.max(0, Math.min(100, component.score)) + "%";
       fill.dataset.level = component.score >= 70 ? "good" : component.score >= 45 ? "warn" : "alert";
       track.appendChild(fill);
       row.appendChild(track);
-      row.appendChild(el("span", "val", component.score));
-      row.title = component.remedy || "";
+      row.appendChild(el("span", "val", missing ? "n. v." : component.score));
+      row.title = missing ? "Im Material nicht enthalten." : component.remedy || "";
       rows.appendChild(row);
     });
 
@@ -9785,8 +10661,9 @@ globalThis["BaselineVision"] = __entry;
   function renderMetrics(report, truthRows) {
     const host = $("metrics");
     clear(host);
+    // A real clip carries no ground truth; the marks simply do not appear.
     const truthById = {};
-    truthRows.forEach((row) => {
+    (truthRows || []).forEach((row) => {
       truthById[row.id] = row.truth;
     });
 

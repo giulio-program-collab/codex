@@ -267,7 +267,17 @@ export function trackRacket(frames: FrameObservation[], opts: RacketOptions): Ra
   }
 
   const coverage = frames.length ? observed / frames.length : 0;
-  if (coverage < 0.6) {
+  // Nothing supplied at all is a different situation from something supplied
+  // and not understood. A pose track from a general-purpose estimator contains
+  // no racket, and reporting that as a failure of this layer would block a
+  // verdict that the rest of the clip may well support.
+  const supplied = frames.some((f) => f.racket);
+  if (!supplied) {
+    notes.push(
+      "Keine Schlägerbeobachtungen im Material. Schlägerbezogene Größen entfallen; " +
+        "die übrige Analyse ist davon nicht betroffen.",
+    );
+  } else if (coverage < 0.6) {
     notes.push(`Schläger nur in ${Math.round(coverage * 100)} % der Bilder erkannt.`);
   }
   const meanConf = clamp(mean(out.map((f) => f.confidence)) ?? 0, 0, 1);
@@ -276,7 +286,7 @@ export function trackRacket(frames: FrameObservation[], opts: RacketOptions): Ra
     report: {
       id: "L7",
       name: "Schlägererkennung",
-      status: coverage > 0.7 ? "ok" : coverage > 0.3 ? "degraded" : "failed",
+      status: !supplied ? "skipped" : coverage > 0.7 ? "ok" : coverage > 0.3 ? "degraded" : "failed",
       quality: clamp(coverage * (0.4 + 0.6 * meanConf), 0, 1),
       notes,
       diagnostics: {
