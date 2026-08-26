@@ -105,8 +105,16 @@
         " s";
       $("videobadge").dataset.active = "true";
       $("video-settings").hidden = false;
+      // A serve is under two seconds. Offering the whole of a thirty-second
+      // clip by default would mean a four-minute wait that looks like a hang.
+      $("v-start").value = "0";
+      $("v-start").max = String(video.duration.toFixed(1));
+      $("v-end").max = String(video.duration.toFixed(1));
+      $("v-end").value = String(Math.min(video.duration, 6).toFixed(1));
       $("v-status").textContent =
-        "Bereit. Bildrate wird beim Erkennen gemessen — die Datei verrät sie nicht.";
+        "Bereit. Ausschnitt prüfen, dann „Posen erkennen“. Die Bildrate wird dabei gemessen — " +
+        "die Datei verrät sie nicht.";
+      $("video-settings").scrollIntoView({ block: "nearest", behavior: "smooth" });
     });
 
     video.addEventListener("error", () => {
@@ -179,6 +187,15 @@
     const status = (text) => ($("v-status").textContent = text);
 
     try {
+      if (!(await vendorPresent())) {
+        window.Playground.fail(
+          "Das Pose-Modell fehlt. Es wird nicht mitgeliefert (24 MB) und muss einmalig geladen werden: " +
+            "im Ordner engine „node --experimental-strip-types tools/fetch-models.ts“ ausführen, " +
+            "danach den Server neu starten und diese Seite neu laden.",
+        );
+        status("Modell fehlt.");
+        return;
+      }
       const landmarker = await loadLandmarker($("v-model").value);
 
       status("Bildrate wird gemessen …");
@@ -197,21 +214,21 @@
       thumb.height = Math.round(state.height * thumbScale);
       const thumbCtx = thumb.getContext("2d");
 
-      // Nine hundred frames is a few seconds of high-speed footage and half a
-      // minute of ordinary footage — well past a serve, and short enough that
-      // the browser stays responsive.
-      const available = Math.floor(video.duration * state.fps);
+      const startS = Math.max(0, Number($("v-start").value) || 0);
+      const endS = Math.min(video.duration, Number($("v-end").value) || video.duration);
+      const available = Math.max(1, Math.floor((endS - startS) * state.fps));
+      // Nine hundred frames is a hard ceiling so a mistyped range cannot turn
+      // into a ten-minute wait.
       const total = Math.min(900, available);
-      if (available > total) {
-        status(`Nur die ersten ${total} Bilder werden ausgewertet (von ${available}).`);
-      }
+      state.startS = startS;
       const flip = $("v-flipdepth").checked ? -1 : 1;
       const frames = [];
       const thumbnails = [];
       let found = 0;
+      const startedAt = Date.now();
 
       for (let i = 0; i < total; i++) {
-        const t = i / state.fps;
+        const t = startS + i / state.fps;
         if (t >= video.duration) break;
         await seekTo(video, t);
         ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
@@ -243,7 +260,7 @@
           }
         }
 
-        const frame = { t: Math.round(t * 1e6) / 1e6, keypoints };
+        const frame = { t: Math.round((t - startS) * 1e6) / 1e6, keypoints };
         if (depth) frame.depth = depth;
         frames.push(frame);
 
@@ -251,7 +268,12 @@
         thumbnails.push(thumbCtx.getImageData(0, 0, thumb.width, thumb.height));
 
         if (i % 5 === 0) {
-          status(`Bild ${i + 1} von ${total} · ${found} mit erkannter Person`);
+          const perFrame = (Date.now() - startedAt) / Math.max(1, i + 1);
+          const remaining = Math.round((perFrame * (total - i - 1)) / 1000);
+          status(
+            `Bild ${i + 1} von ${total} · ${found} mit erkannter Person` +
+              (remaining > 2 ? ` · noch ca. ${remaining} s` : ""),
+          );
           await new Promise((r) => setTimeout(r, 0));
         }
       }
@@ -393,12 +415,38 @@
   /* Wiring                                                            */
   /* ---------------------------------------------------------------- */
 
+  /**
+   * Is the estimator actually there?
+   *
+   * `fetch-models.ts` is a separate step, and forgetting it produces a 404 deep
+   * inside a WebAssembly loader whose message says nothing useful. Checking
+   * first turns that into one sentence naming the command that was missed.
+   */
+  async function vendorPresent() {
+    try {
+      const response = await fetch(VENDOR + "vision_bundle.mjs", { method: "HEAD" });
+      return response.ok;
+    } catch (err) {
+      return false;
+    }
+  }
+
   function init() {
     $("video-block").hidden = false;
+    // Videos dropped on the clip zone belong here too.
+    window.__videoRoute = loadVideo;
+    // One zone, not two: the second one was a trap, because the file someone
+    // reaches for first is the video and the older zone refused it.
+    const clipBlock = $("clip-block");
+    if (clipBlock) clipBlock.hidden = true;
+    // This page *is* the video page; the link to it belongs on the other one.
+    const link = $("videolink");
+    if (link) link.hidden = true;
+    $("videozone").firstChild.nodeValue = "\n        Video oder Clip-Datei hier ablegen oder klicken\n      ";
 
     const input = $("videofile");
     const zone = $("videozone");
-    input.addEventListener("change", () => input.files && input.files[0] && loadVideo(input.files[0]));
+    input.addEventListener("change", () => input.files && input.files[0] && accept(input.files[0]));
     ["dragenter", "dragover"].forEach((type) =>
       zone.addEventListener(type, (e) => {
         e.preventDefault();
@@ -411,9 +459,21 @@
         zone.dataset.over = "false";
       }),
     );
+    const accept = (file) => {
+      if (!file) return;
+      const extension = (file.name.split(".").pop() || "").toLowerCase();
+      // A clip file dropped on the video zone goes to the clip route rather
+      // than being refused for sitting on the wrong half of the page.
+      if (extension === "json" || file.type === "application/json") {
+        if (window.Playground.loadFile) window.Playground.loadFile(file);
+        return;
+      }
+      loadVideo(file);
+    };
+
     zone.addEventListener("drop", (e) => {
       const file = e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0];
-      if (file) loadVideo(file);
+      accept(file);
     });
 
     $("v-extract").addEventListener("click", extract);

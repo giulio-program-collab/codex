@@ -96,6 +96,13 @@
     box-sizing: border-box;
   }
 
+  /* `hidden` is a presentation hint that any `display` rule silently beats, and
+     several blocks here are laid out with flex. Without this, hiding them from
+     script does nothing at all. */
+  [hidden] {
+    display: none !important;
+  }
+
   body {
     margin: 0;
     background: var(--ground);
@@ -1252,6 +1259,22 @@
     nicht.
   </p>
   <div class="spacer"></div>
+  <a
+    id="videolink"
+    href="video.html"
+    hidden
+    style="
+      font-family: var(--data);
+      font-size: 0.72rem;
+      text-decoration: none;
+      border: 1px solid var(--accent);
+      color: var(--accent);
+      padding: 0.25rem 0.5rem;
+      border-radius: 2px;
+      white-space: nowrap;
+    "
+    >Videos auswerten →</a
+  >
   <div class="runstate"><span class="dot"></span><span id="runstate-text">bereit</span></div>
   <div class="progress"><i id="progress-bar"></i></div>
 </header>
@@ -1261,8 +1284,8 @@
     <div class="field" id="video-block" hidden>
       <span class="name">Video auswerten</span>
       <label class="dropzone" id="videozone">
-        Videodatei hier ablegen oder klicken
-        <input type="file" id="videofile" accept="video/*" />
+        Video hier ablegen oder klicken
+        <input type="file" id="videofile" />
       </label>
       <div class="clipbadge" id="videobadge">
         <b id="videoname"></b>
@@ -1287,6 +1310,16 @@
           <option value="high_performance" selected>Leistungsklasse</option>
           <option value="elite">Weltklasse</option>
         </select>
+
+        <label class="name" for="v-range">Ausschnitt (Sekunden)</label>
+        <div style="display: flex; gap: 0.4rem" id="v-range">
+          <input type="number" id="v-start" min="0" step="0.1" value="0" aria-label="von Sekunde" />
+          <input type="number" id="v-end" min="0" step="0.1" aria-label="bis Sekunde" />
+        </div>
+        <p class="hint">
+          Ein Aufschlag dauert keine zwei Sekunden. Je kürzer der Ausschnitt, desto schneller die
+          Erkennung.
+        </p>
 
         <label class="name" for="v-hfov">Bildwinkel (Grad, optional)</label>
         <input type="number" id="v-hfov" min="20" max="120" step="1" placeholder="unbekannt" />
@@ -1315,7 +1348,7 @@
       </div>
     </div>
 
-    <div class="field">
+    <div class="field" id="clip-block">
       <span class="name">Eigenes Video</span>
       <label class="dropzone" id="dropzone">
         Clip-Datei hier ablegen oder klicken
@@ -9974,6 +10007,8 @@ globalThis["BaselineVision"] = __entry;
   /* Controls                                                          */
   /* ---------------------------------------------------------------- */
 
+  window.Playground = window.Playground || {};
+
   const FPS_OPTIONS = [30, 60, 120, 240];
 
   function buildControls() {
@@ -10078,6 +10113,13 @@ globalThis["BaselineVision"] = __entry;
     });
 
     setupClipLoading();
+    // Served from a local server but without the estimator? Then the page that
+    // has it is one link away, and that link should be visible rather than
+    // buried in a paragraph.
+    if (!window.__videoRoute && location.protocol.indexOf("http") === 0) {
+      const link = $("videolink");
+      if (link) link.hidden = false;
+    }
     updatePresetHint();
     updateCaptureHint();
     setupOrbit();
@@ -10093,17 +10135,22 @@ globalThis["BaselineVision"] = __entry;
       if (!file) return;
       const extension = (file.name.split(".").pop() || "").toLowerCase();
 
-      // The commonest mistake, and worth naming precisely: a video file is
-      // exactly what someone would try first, and "not readable" tells them
-      // nothing about why or what to do instead.
+      // A video dropped here is not a mistake to correct, it is the thing
+      // someone wants analysed. Where this page has a pose estimator in front
+      // of it, the file simply goes there; where it does not, the message says
+      // which page does, rather than explaining a format nobody asked about.
       if (file.type.indexOf("video/") === 0 || VIDEO_EXTENSIONS.indexOf(extension) >= 0) {
+        if (window.__videoRoute) {
+          window.__videoRoute(file);
+          return;
+        }
         fail(
-          "Das ist eine Videodatei (." + extension + "). Der Prüfstand liest keine Videos: Die Messkette " +
-            "beginnt bei Gelenkpunkten, nicht bei Pixeln, und der Pose-Estimator läuft bewusst " +
-            "außerhalb. Erzeugen Sie zuerst die Clip-Datei — " +
-            "python engine/tools/extract-pose.py " + file.name + " clip.json --height-cm 185 " +
-            "--hand right --level high_performance --contact-frame <Bildnummer> — und legen Sie dann " +
-            "clip.json hier ab.",
+          "Diese Seite kann Videos nicht lesen — ihr fehlt die Posenerkennung (24 MB Modell und " +
+            "WebAssembly, die nicht in eine einzelne Datei passen). Der Prüfstand mit Video-Eingang " +
+            "läuft lokal: im Ordner engine einmalig " +
+            "„node --experimental-strip-types tools/fetch-models.ts“, dann " +
+            "„node --experimental-strip-types tools/serve.ts“ und http://localhost:8080/ öffnen. " +
+            "Dort dieselbe Datei hineinziehen.",
         );
         return;
       }
@@ -10155,6 +10202,9 @@ globalThis["BaselineVision"] = __entry;
     };
 
     input.addEventListener("change", () => load(input.files && input.files[0]));
+    // Both zones on the video page end up here, so a file may be dropped on
+    // whichever one the reader noticed first.
+    window.Playground.loadFile = load;
 
     // A file dropped anywhere else on the page would otherwise make the browser
     // navigate away from the playground, which looks exactly like the page
@@ -11341,7 +11391,7 @@ globalThis["BaselineVision"] = __entry;
    * the browser just read — end in exactly the same analysis and the same
    * report.
    */
-  window.Playground = {
+  Object.assign(window.Playground, {
     acceptClip(clip, name, meta) {
       state.clip = clip;
       state.clipName = name;
@@ -11353,7 +11403,7 @@ globalThis["BaselineVision"] = __entry;
     },
     fail,
     setBusy,
-  };
+  });
 
   buildControls();
   runAnalysis();

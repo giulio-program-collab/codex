@@ -15,7 +15,8 @@ import { dirname, extname, join, normalize } from "node:path";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const root = join(here, "..", "..", "playground");
-const port = Number(process.argv[2] ?? 8080);
+const port = Number(process.argv.find((a) => /^\d+$/.test(a)) ?? 8080);
+const isolate = process.argv.includes("--isolate");
 
 const TYPES: Record<string, string> = {
   ".html": "text/html; charset=utf-8",
@@ -41,11 +42,16 @@ const server = createServer((req, res) => {
   res.writeHead(200, {
     "content-type": TYPES[extname(path)] ?? "application/octet-stream",
     "content-length": statSync(path).size,
-    // The pose runtime uses threads, which browsers only allow on a
-    // cross-origin-isolated page.
-    "cross-origin-opener-policy": "same-origin",
-    "cross-origin-embedder-policy": "require-corp",
     "cache-control": "no-cache",
+    // Cross-origin isolation lets the pose runtime use threads. It is off by
+    // default because the published page cannot have it either, and a route
+    // that only works with it would be a route that only works here.
+    ...(isolate
+      ? {
+          "cross-origin-opener-policy": "same-origin",
+          "cross-origin-embedder-policy": "require-corp",
+        }
+      : {}),
   });
   createReadStream(path).pipe(res);
 });

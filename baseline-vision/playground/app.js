@@ -119,6 +119,8 @@
   /* Controls                                                          */
   /* ---------------------------------------------------------------- */
 
+  window.Playground = window.Playground || {};
+
   const FPS_OPTIONS = [30, 60, 120, 240];
 
   function buildControls() {
@@ -223,6 +225,13 @@
     });
 
     setupClipLoading();
+    // Served from a local server but without the estimator? Then the page that
+    // has it is one link away, and that link should be visible rather than
+    // buried in a paragraph.
+    if (!window.__videoRoute && location.protocol.indexOf("http") === 0) {
+      const link = $("videolink");
+      if (link) link.hidden = false;
+    }
     updatePresetHint();
     updateCaptureHint();
     setupOrbit();
@@ -238,17 +247,22 @@
       if (!file) return;
       const extension = (file.name.split(".").pop() || "").toLowerCase();
 
-      // The commonest mistake, and worth naming precisely: a video file is
-      // exactly what someone would try first, and "not readable" tells them
-      // nothing about why or what to do instead.
+      // A video dropped here is not a mistake to correct, it is the thing
+      // someone wants analysed. Where this page has a pose estimator in front
+      // of it, the file simply goes there; where it does not, the message says
+      // which page does, rather than explaining a format nobody asked about.
       if (file.type.indexOf("video/") === 0 || VIDEO_EXTENSIONS.indexOf(extension) >= 0) {
+        if (window.__videoRoute) {
+          window.__videoRoute(file);
+          return;
+        }
         fail(
-          "Das ist eine Videodatei (." + extension + "). Der Prüfstand liest keine Videos: Die Messkette " +
-            "beginnt bei Gelenkpunkten, nicht bei Pixeln, und der Pose-Estimator läuft bewusst " +
-            "außerhalb. Erzeugen Sie zuerst die Clip-Datei — " +
-            "python engine/tools/extract-pose.py " + file.name + " clip.json --height-cm 185 " +
-            "--hand right --level high_performance --contact-frame <Bildnummer> — und legen Sie dann " +
-            "clip.json hier ab.",
+          "Diese Seite kann Videos nicht lesen — ihr fehlt die Posenerkennung (24 MB Modell und " +
+            "WebAssembly, die nicht in eine einzelne Datei passen). Der Prüfstand mit Video-Eingang " +
+            "läuft lokal: im Ordner engine einmalig " +
+            "„node --experimental-strip-types tools/fetch-models.ts“, dann " +
+            "„node --experimental-strip-types tools/serve.ts“ und http://localhost:8080/ öffnen. " +
+            "Dort dieselbe Datei hineinziehen.",
         );
         return;
       }
@@ -300,6 +314,9 @@
     };
 
     input.addEventListener("change", () => load(input.files && input.files[0]));
+    // Both zones on the video page end up here, so a file may be dropped on
+    // whichever one the reader noticed first.
+    window.Playground.loadFile = load;
 
     // A file dropped anywhere else on the page would otherwise make the browser
     // navigate away from the playground, which looks exactly like the page
@@ -1486,7 +1503,7 @@
    * the browser just read — end in exactly the same analysis and the same
    * report.
    */
-  window.Playground = {
+  Object.assign(window.Playground, {
     acceptClip(clip, name, meta) {
       state.clip = clip;
       state.clipName = name;
@@ -1498,7 +1515,7 @@
     },
     fail,
     setBusy,
-  };
+  });
 
   buildControls();
   runAnalysis();

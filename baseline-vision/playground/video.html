@@ -96,6 +96,13 @@
     box-sizing: border-box;
   }
 
+  /* `hidden` is a presentation hint that any `display` rule silently beats, and
+     several blocks here are laid out with flex. Without this, hiding them from
+     script does nothing at all. */
+  [hidden] {
+    display: none !important;
+  }
+
   body {
     margin: 0;
     background: var(--ground);
@@ -1252,6 +1259,22 @@
     nicht.
   </p>
   <div class="spacer"></div>
+  <a
+    id="videolink"
+    href="video.html"
+    hidden
+    style="
+      font-family: var(--data);
+      font-size: 0.72rem;
+      text-decoration: none;
+      border: 1px solid var(--accent);
+      color: var(--accent);
+      padding: 0.25rem 0.5rem;
+      border-radius: 2px;
+      white-space: nowrap;
+    "
+    >Videos auswerten →</a
+  >
   <div class="runstate"><span class="dot"></span><span id="runstate-text">bereit</span></div>
   <div class="progress"><i id="progress-bar"></i></div>
 </header>
@@ -1261,8 +1284,8 @@
     <div class="field" id="video-block" hidden>
       <span class="name">Video auswerten</span>
       <label class="dropzone" id="videozone">
-        Videodatei hier ablegen oder klicken
-        <input type="file" id="videofile" accept="video/*" />
+        Video hier ablegen oder klicken
+        <input type="file" id="videofile" />
       </label>
       <div class="clipbadge" id="videobadge">
         <b id="videoname"></b>
@@ -1287,6 +1310,16 @@
           <option value="high_performance" selected>Leistungsklasse</option>
           <option value="elite">Weltklasse</option>
         </select>
+
+        <label class="name" for="v-range">Ausschnitt (Sekunden)</label>
+        <div style="display: flex; gap: 0.4rem" id="v-range">
+          <input type="number" id="v-start" min="0" step="0.1" value="0" aria-label="von Sekunde" />
+          <input type="number" id="v-end" min="0" step="0.1" aria-label="bis Sekunde" />
+        </div>
+        <p class="hint">
+          Ein Aufschlag dauert keine zwei Sekunden. Je kürzer der Ausschnitt, desto schneller die
+          Erkennung.
+        </p>
 
         <label class="name" for="v-hfov">Bildwinkel (Grad, optional)</label>
         <input type="number" id="v-hfov" min="20" max="120" step="1" placeholder="unbekannt" />
@@ -1315,7 +1348,7 @@
       </div>
     </div>
 
-    <div class="field">
+    <div class="field" id="clip-block">
       <span class="name">Eigenes Video</span>
       <label class="dropzone" id="dropzone">
         Clip-Datei hier ablegen oder klicken
@@ -9974,6 +10007,8 @@ globalThis["BaselineVision"] = __entry;
   /* Controls                                                          */
   /* ---------------------------------------------------------------- */
 
+  window.Playground = window.Playground || {};
+
   const FPS_OPTIONS = [30, 60, 120, 240];
 
   function buildControls() {
@@ -10078,6 +10113,13 @@ globalThis["BaselineVision"] = __entry;
     });
 
     setupClipLoading();
+    // Served from a local server but without the estimator? Then the page that
+    // has it is one link away, and that link should be visible rather than
+    // buried in a paragraph.
+    if (!window.__videoRoute && location.protocol.indexOf("http") === 0) {
+      const link = $("videolink");
+      if (link) link.hidden = false;
+    }
     updatePresetHint();
     updateCaptureHint();
     setupOrbit();
@@ -10093,17 +10135,22 @@ globalThis["BaselineVision"] = __entry;
       if (!file) return;
       const extension = (file.name.split(".").pop() || "").toLowerCase();
 
-      // The commonest mistake, and worth naming precisely: a video file is
-      // exactly what someone would try first, and "not readable" tells them
-      // nothing about why or what to do instead.
+      // A video dropped here is not a mistake to correct, it is the thing
+      // someone wants analysed. Where this page has a pose estimator in front
+      // of it, the file simply goes there; where it does not, the message says
+      // which page does, rather than explaining a format nobody asked about.
       if (file.type.indexOf("video/") === 0 || VIDEO_EXTENSIONS.indexOf(extension) >= 0) {
+        if (window.__videoRoute) {
+          window.__videoRoute(file);
+          return;
+        }
         fail(
-          "Das ist eine Videodatei (." + extension + "). Der Prüfstand liest keine Videos: Die Messkette " +
-            "beginnt bei Gelenkpunkten, nicht bei Pixeln, und der Pose-Estimator läuft bewusst " +
-            "außerhalb. Erzeugen Sie zuerst die Clip-Datei — " +
-            "python engine/tools/extract-pose.py " + file.name + " clip.json --height-cm 185 " +
-            "--hand right --level high_performance --contact-frame <Bildnummer> — und legen Sie dann " +
-            "clip.json hier ab.",
+          "Diese Seite kann Videos nicht lesen — ihr fehlt die Posenerkennung (24 MB Modell und " +
+            "WebAssembly, die nicht in eine einzelne Datei passen). Der Prüfstand mit Video-Eingang " +
+            "läuft lokal: im Ordner engine einmalig " +
+            "„node --experimental-strip-types tools/fetch-models.ts“, dann " +
+            "„node --experimental-strip-types tools/serve.ts“ und http://localhost:8080/ öffnen. " +
+            "Dort dieselbe Datei hineinziehen.",
         );
         return;
       }
@@ -10155,6 +10202,9 @@ globalThis["BaselineVision"] = __entry;
     };
 
     input.addEventListener("change", () => load(input.files && input.files[0]));
+    // Both zones on the video page end up here, so a file may be dropped on
+    // whichever one the reader noticed first.
+    window.Playground.loadFile = load;
 
     // A file dropped anywhere else on the page would otherwise make the browser
     // navigate away from the playground, which looks exactly like the page
@@ -11341,7 +11391,7 @@ globalThis["BaselineVision"] = __entry;
    * the browser just read — end in exactly the same analysis and the same
    * report.
    */
-  window.Playground = {
+  Object.assign(window.Playground, {
     acceptClip(clip, name, meta) {
       state.clip = clip;
       state.clipName = name;
@@ -11353,7 +11403,7 @@ globalThis["BaselineVision"] = __entry;
     },
     fail,
     setBusy,
-  };
+  });
 
   buildControls();
   runAnalysis();
@@ -11469,8 +11519,16 @@ globalThis["BaselineVision"] = __entry;
         " s";
       $("videobadge").dataset.active = "true";
       $("video-settings").hidden = false;
+      // A serve is under two seconds. Offering the whole of a thirty-second
+      // clip by default would mean a four-minute wait that looks like a hang.
+      $("v-start").value = "0";
+      $("v-start").max = String(video.duration.toFixed(1));
+      $("v-end").max = String(video.duration.toFixed(1));
+      $("v-end").value = String(Math.min(video.duration, 6).toFixed(1));
       $("v-status").textContent =
-        "Bereit. Bildrate wird beim Erkennen gemessen — die Datei verrät sie nicht.";
+        "Bereit. Ausschnitt prüfen, dann „Posen erkennen“. Die Bildrate wird dabei gemessen — " +
+        "die Datei verrät sie nicht.";
+      $("video-settings").scrollIntoView({ block: "nearest", behavior: "smooth" });
     });
 
     video.addEventListener("error", () => {
@@ -11543,6 +11601,15 @@ globalThis["BaselineVision"] = __entry;
     const status = (text) => ($("v-status").textContent = text);
 
     try {
+      if (!(await vendorPresent())) {
+        window.Playground.fail(
+          "Das Pose-Modell fehlt. Es wird nicht mitgeliefert (24 MB) und muss einmalig geladen werden: " +
+            "im Ordner engine „node --experimental-strip-types tools/fetch-models.ts“ ausführen, " +
+            "danach den Server neu starten und diese Seite neu laden.",
+        );
+        status("Modell fehlt.");
+        return;
+      }
       const landmarker = await loadLandmarker($("v-model").value);
 
       status("Bildrate wird gemessen …");
@@ -11561,21 +11628,21 @@ globalThis["BaselineVision"] = __entry;
       thumb.height = Math.round(state.height * thumbScale);
       const thumbCtx = thumb.getContext("2d");
 
-      // Nine hundred frames is a few seconds of high-speed footage and half a
-      // minute of ordinary footage — well past a serve, and short enough that
-      // the browser stays responsive.
-      const available = Math.floor(video.duration * state.fps);
+      const startS = Math.max(0, Number($("v-start").value) || 0);
+      const endS = Math.min(video.duration, Number($("v-end").value) || video.duration);
+      const available = Math.max(1, Math.floor((endS - startS) * state.fps));
+      // Nine hundred frames is a hard ceiling so a mistyped range cannot turn
+      // into a ten-minute wait.
       const total = Math.min(900, available);
-      if (available > total) {
-        status(`Nur die ersten ${total} Bilder werden ausgewertet (von ${available}).`);
-      }
+      state.startS = startS;
       const flip = $("v-flipdepth").checked ? -1 : 1;
       const frames = [];
       const thumbnails = [];
       let found = 0;
+      const startedAt = Date.now();
 
       for (let i = 0; i < total; i++) {
-        const t = i / state.fps;
+        const t = startS + i / state.fps;
         if (t >= video.duration) break;
         await seekTo(video, t);
         ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
@@ -11607,7 +11674,7 @@ globalThis["BaselineVision"] = __entry;
           }
         }
 
-        const frame = { t: Math.round(t * 1e6) / 1e6, keypoints };
+        const frame = { t: Math.round((t - startS) * 1e6) / 1e6, keypoints };
         if (depth) frame.depth = depth;
         frames.push(frame);
 
@@ -11615,7 +11682,12 @@ globalThis["BaselineVision"] = __entry;
         thumbnails.push(thumbCtx.getImageData(0, 0, thumb.width, thumb.height));
 
         if (i % 5 === 0) {
-          status(`Bild ${i + 1} von ${total} · ${found} mit erkannter Person`);
+          const perFrame = (Date.now() - startedAt) / Math.max(1, i + 1);
+          const remaining = Math.round((perFrame * (total - i - 1)) / 1000);
+          status(
+            `Bild ${i + 1} von ${total} · ${found} mit erkannter Person` +
+              (remaining > 2 ? ` · noch ca. ${remaining} s` : ""),
+          );
           await new Promise((r) => setTimeout(r, 0));
         }
       }
@@ -11757,12 +11829,38 @@ globalThis["BaselineVision"] = __entry;
   /* Wiring                                                            */
   /* ---------------------------------------------------------------- */
 
+  /**
+   * Is the estimator actually there?
+   *
+   * `fetch-models.ts` is a separate step, and forgetting it produces a 404 deep
+   * inside a WebAssembly loader whose message says nothing useful. Checking
+   * first turns that into one sentence naming the command that was missed.
+   */
+  async function vendorPresent() {
+    try {
+      const response = await fetch(VENDOR + "vision_bundle.mjs", { method: "HEAD" });
+      return response.ok;
+    } catch (err) {
+      return false;
+    }
+  }
+
   function init() {
     $("video-block").hidden = false;
+    // Videos dropped on the clip zone belong here too.
+    window.__videoRoute = loadVideo;
+    // One zone, not two: the second one was a trap, because the file someone
+    // reaches for first is the video and the older zone refused it.
+    const clipBlock = $("clip-block");
+    if (clipBlock) clipBlock.hidden = true;
+    // This page *is* the video page; the link to it belongs on the other one.
+    const link = $("videolink");
+    if (link) link.hidden = true;
+    $("videozone").firstChild.nodeValue = "\n        Video oder Clip-Datei hier ablegen oder klicken\n      ";
 
     const input = $("videofile");
     const zone = $("videozone");
-    input.addEventListener("change", () => input.files && input.files[0] && loadVideo(input.files[0]));
+    input.addEventListener("change", () => input.files && input.files[0] && accept(input.files[0]));
     ["dragenter", "dragover"].forEach((type) =>
       zone.addEventListener(type, (e) => {
         e.preventDefault();
@@ -11775,9 +11873,21 @@ globalThis["BaselineVision"] = __entry;
         zone.dataset.over = "false";
       }),
     );
+    const accept = (file) => {
+      if (!file) return;
+      const extension = (file.name.split(".").pop() || "").toLowerCase();
+      // A clip file dropped on the video zone goes to the clip route rather
+      // than being refused for sitting on the wrong half of the page.
+      if (extension === "json" || file.type === "application/json") {
+        if (window.Playground.loadFile) window.Playground.loadFile(file);
+        return;
+      }
+      loadVideo(file);
+    };
+
     zone.addEventListener("drop", (e) => {
       const file = e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0];
-      if (file) loadVideo(file);
+      accept(file);
     });
 
     $("v-extract").addEventListener("click", extract);

@@ -91,6 +91,13 @@
     box-sizing: border-box;
   }
 
+  /* `hidden` is a presentation hint that any `display` rule silently beats, and
+     several blocks here are laid out with flex. Without this, hiding them from
+     script does nothing at all. */
+  [hidden] {
+    display: none !important;
+  }
+
   body {
     margin: 0;
     background: var(--ground);
@@ -1244,6 +1251,22 @@
     nicht.
   </p>
   <div class="spacer"></div>
+  <a
+    id="videolink"
+    href="video.html"
+    hidden
+    style="
+      font-family: var(--data);
+      font-size: 0.72rem;
+      text-decoration: none;
+      border: 1px solid var(--accent);
+      color: var(--accent);
+      padding: 0.25rem 0.5rem;
+      border-radius: 2px;
+      white-space: nowrap;
+    "
+    >Videos auswerten →</a
+  >
   <div class="runstate"><span class="dot"></span><span id="runstate-text">bereit</span></div>
   <div class="progress"><i id="progress-bar"></i></div>
 </header>
@@ -1253,8 +1276,8 @@
     <div class="field" id="video-block" hidden>
       <span class="name">Video auswerten</span>
       <label class="dropzone" id="videozone">
-        Videodatei hier ablegen oder klicken
-        <input type="file" id="videofile" accept="video/*" />
+        Video hier ablegen oder klicken
+        <input type="file" id="videofile" />
       </label>
       <div class="clipbadge" id="videobadge">
         <b id="videoname"></b>
@@ -1279,6 +1302,16 @@
           <option value="high_performance" selected>Leistungsklasse</option>
           <option value="elite">Weltklasse</option>
         </select>
+
+        <label class="name" for="v-range">Ausschnitt (Sekunden)</label>
+        <div style="display: flex; gap: 0.4rem" id="v-range">
+          <input type="number" id="v-start" min="0" step="0.1" value="0" aria-label="von Sekunde" />
+          <input type="number" id="v-end" min="0" step="0.1" aria-label="bis Sekunde" />
+        </div>
+        <p class="hint">
+          Ein Aufschlag dauert keine zwei Sekunden. Je kürzer der Ausschnitt, desto schneller die
+          Erkennung.
+        </p>
 
         <label class="name" for="v-hfov">Bildwinkel (Grad, optional)</label>
         <input type="number" id="v-hfov" min="20" max="120" step="1" placeholder="unbekannt" />
@@ -1307,7 +1340,7 @@
       </div>
     </div>
 
-    <div class="field">
+    <div class="field" id="clip-block">
       <span class="name">Eigenes Video</span>
       <label class="dropzone" id="dropzone">
         Clip-Datei hier ablegen oder klicken
