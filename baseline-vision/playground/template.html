@@ -389,6 +389,145 @@
     outline-offset: 2px;
   }
 
+  .steps {
+    display: flex;
+    list-style: none;
+    margin: 0 0 0.2rem;
+    padding: 0;
+    gap: 0.3rem;
+    font-family: var(--data);
+    font-size: 0.68rem;
+    color: var(--ink-faint);
+  }
+
+  .steps li {
+    flex: 1 1 0;
+    display: flex;
+    align-items: center;
+    gap: 0.3rem;
+    border-top: 2px solid var(--line);
+    padding-top: 0.35rem;
+    white-space: nowrap;
+    overflow: hidden;
+  }
+
+  .steps li b {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 15px;
+    height: 15px;
+    border-radius: 50%;
+    background: var(--line);
+    color: var(--surface);
+    font-size: 0.6rem;
+    flex: 0 0 auto;
+  }
+
+  .steps li[data-state="active"] {
+    border-top-color: var(--accent);
+    color: var(--ink);
+  }
+
+  .steps li[data-state="active"] b,
+  .steps li[data-state="done"] b {
+    background: var(--accent);
+    color: var(--accent-ink);
+  }
+
+  .steps li[data-state="done"] {
+    border-top-color: var(--accent);
+  }
+
+  button.primary {
+    width: 100%;
+    font-family: var(--display);
+    font-size: 0.92rem;
+    font-weight: 600;
+    padding: 0.6rem 0.75rem;
+    background: var(--accent);
+    color: var(--accent-ink);
+    border: 0;
+    border-radius: 2px;
+    cursor: pointer;
+    transition: filter 0.15s ease;
+  }
+
+  button.primary:hover:not(:disabled) {
+    filter: brightness(1.1);
+  }
+
+  button.primary:disabled {
+    opacity: 0.5;
+    cursor: default;
+  }
+
+  .progress-line {
+    height: 4px;
+    background: var(--surface-sunk);
+    border: 1px solid var(--line);
+    overflow: hidden;
+  }
+
+  .progress-line i {
+    display: block;
+    height: 100%;
+    width: 0%;
+    background: var(--accent);
+    transition: width 0.3s ease;
+  }
+
+  .pair {
+    display: flex;
+    gap: 0.5rem;
+  }
+
+  .pair > * {
+    flex: 1 1 0;
+    min-width: 0;
+  }
+
+  .suffixed {
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
+  }
+
+  .suffixed input {
+    flex: 1 1 auto;
+  }
+
+  .suffixed span {
+    font-family: var(--data);
+    font-size: 0.76rem;
+    color: var(--ink-faint);
+  }
+
+  details#v-advanced summary {
+    font-family: var(--data);
+    font-size: 0.72rem;
+    color: var(--ink-soft);
+    cursor: pointer;
+    padding: 0.3rem 0;
+  }
+
+  details#v-advanced summary:hover {
+    color: var(--accent);
+  }
+
+  .dropzone strong {
+    display: block;
+    font-family: var(--display);
+    font-size: 0.9rem;
+    color: var(--ink);
+  }
+
+  .dropzone small {
+    display: block;
+    margin-top: 0.15rem;
+    font-size: 0.72rem;
+  }
+
   .dropzone {
     border: 1px dashed var(--line-strong);
     border-radius: 2px;
@@ -931,6 +1070,94 @@
     color: var(--alert);
   }
 
+  .fitrow {
+    display: grid;
+    grid-template-columns: 9.5rem 8rem minmax(0, 1fr);
+    gap: 0.5rem 0.9rem;
+    align-items: baseline;
+    padding: 0.5rem 0;
+    border-bottom: 1px dotted var(--line);
+    font-size: 0.85rem;
+  }
+
+  .fitrow:last-child {
+    border-bottom: 0;
+  }
+
+  .fitrow .v {
+    font-family: var(--data);
+    font-variant-numeric: tabular-nums;
+  }
+
+  .fitrow .t {
+    color: var(--ink-soft);
+    font-size: 0.82rem;
+  }
+
+  .fitrow .dot {
+    display: inline-block;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    margin-right: 0.45rem;
+    background: var(--accent);
+  }
+
+  .fitrow[data-tone="warn"] .dot {
+    background: var(--warn);
+  }
+
+  .fitrow[data-tone="alert"] .dot {
+    background: var(--alert);
+  }
+
+  @media (max-width: 620px) {
+    .fitrow {
+      grid-template-columns: minmax(0, 1fr);
+    }
+  }
+
+  .guide {
+    margin: 0;
+    padding-left: 1.2rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    max-width: 70ch;
+    font-size: 0.9rem;
+  }
+
+  .guide b {
+    font-family: var(--display);
+    font-weight: 600;
+  }
+
+  .callout-row {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+    gap: 0.9rem;
+  }
+
+  .callout-row > div {
+    border-left: 3px solid var(--accent);
+    background: var(--surface-sunk);
+    padding: 0.7rem 0.9rem;
+  }
+
+  .callout-row > div:last-child {
+    border-left-color: var(--warn);
+  }
+
+  .callout-row ul {
+    margin: 0.4rem 0 0;
+    padding-left: 1.1rem;
+    font-size: 0.83rem;
+    color: var(--ink-soft);
+    display: flex;
+    flex-direction: column;
+    gap: 0.2rem;
+  }
+
   /* Lists ------------------------------------------------------------ */
 
   .stack {
@@ -1274,9 +1501,16 @@
 <div class="shell">
   <form class="rail" id="controls" autocomplete="off">
     <div class="field" id="video-block" hidden>
-      <span class="name">Video auswerten</span>
+      <ol class="steps" id="steps">
+        <li data-step="1" data-state="active"><b>1</b> Video</li>
+        <li data-step="2"><b>2</b> Spieler</li>
+        <li data-step="3"><b>3</b> Treffpunkt</li>
+        <li data-step="4"><b>4</b> Ergebnis</li>
+      </ol>
+
       <label class="dropzone" id="videozone">
-        Video hier ablegen oder klicken
+        <strong>Video auswählen</strong>
+        <small>oder hierher ziehen · MP4, MOV, WebM</small>
         <input type="file" id="videofile" />
       </label>
       <div class="clipbadge" id="videobadge">
@@ -1285,67 +1519,68 @@
       </div>
 
       <div class="field" id="video-settings" hidden>
-        <label class="name" for="v-height">Körpergröße (cm)</label>
-        <input type="number" id="v-height" min="120" max="220" step="1" value="185" />
-
-        <label class="name" for="v-hand">Schlaghand</label>
-        <select id="v-hand">
-          <option value="right">rechts</option>
-          <option value="left">links</option>
-        </select>
-
-        <label class="name" for="v-level">Niveau</label>
-        <select id="v-level">
-          <option value="junior_development">Nachwuchs</option>
-          <option value="junior_national">Nachwuchs national</option>
-          <option value="college">College</option>
-          <option value="high_performance" selected>Leistungsklasse</option>
-          <option value="elite">Weltklasse</option>
-        </select>
-
-        <label class="name" for="v-range">Ausschnitt (Sekunden)</label>
-        <div style="display: flex; gap: 0.4rem" id="v-range">
-          <input type="number" id="v-start" min="0" step="0.1" value="0" aria-label="von Sekunde" />
-          <input type="number" id="v-end" min="0" step="0.1" aria-label="bis Sekunde" />
-        </div>
-        <p class="hint">
-          Ein Aufschlag dauert keine zwei Sekunden. Je kürzer der Ausschnitt, desto schneller die
-          Erkennung.
-        </p>
-
-        <div id="v-fps-row" hidden>
-          <label class="name" for="v-fps">Gemessene Bildrate (fps)</label>
-          <input type="number" id="v-fps" min="1" max="1000" step="0.001" />
-          <p class="hint">
-            Aus dem Abspielen gemessen. Stimmt sie nicht mit der Datei überein, hier korrigieren — jede
-            Zeitmessung wird durch diesen Wert geteilt.
-          </p>
+        <div class="pair">
+          <div>
+            <label class="name" for="v-height">Körpergröße</label>
+            <div class="suffixed"><input type="number" id="v-height" min="120" max="220" step="1" value="185" /><span>cm</span></div>
+          </div>
+          <div>
+            <label class="name" for="v-hand">Schlaghand</label>
+            <select id="v-hand">
+              <option value="right">rechts</option>
+              <option value="left">links</option>
+            </select>
+          </div>
         </div>
 
-        <label class="name" for="v-hfov">Bildwinkel (Grad, optional)</label>
-        <input type="number" id="v-hfov" min="20" max="120" step="1" placeholder="unbekannt" />
-
-        <label class="name" for="v-capture">Aufnahmerate (fps, bei Zeitlupe)</label>
-        <input type="number" id="v-capture" min="24" max="1000" step="1" placeholder="wie Datei" />
-
-        <label class="name" for="v-model">Modell</label>
-        <select id="v-model">
-          <option value="pose_landmarker_full.task" selected>genau (9 MB)</option>
-          <option value="pose_landmarker_lite.task">schnell (5,5 MB)</option>
-        </select>
-
-        <label class="switch" style="margin-top: 0.4rem">
-          <input type="checkbox" id="v-flipdepth" />
-          <span class="text"
-            >Tiefenrichtung umkehren
-            <small>Nur nötig, wenn „Tiefenrichtung gesichert“ niedrig bleibt.</small></span
-          >
-        </label>
-
-        <button type="button" class="play" id="v-extract" style="margin-top: 0.6rem; width: 100%">
-          Posen erkennen
-        </button>
+        <button type="button" class="primary" id="v-extract">Analyse starten</button>
+        <div class="progress-line" id="v-progress" hidden><i></i></div>
         <p class="hint" id="v-status"></p>
+
+        <details id="v-advanced">
+          <summary>Mehr Einstellungen</summary>
+          <div class="field" style="margin-top: 0.7rem">
+            <label class="name" for="v-level">Spielniveau</label>
+            <select id="v-level">
+              <option value="junior_development">Nachwuchs</option>
+              <option value="junior_national">Nachwuchs national</option>
+              <option value="college">College</option>
+              <option value="high_performance" selected>Leistungsklasse</option>
+              <option value="elite">Weltklasse</option>
+            </select>
+
+            <label class="name" for="v-range">Ausschnitt (Sekunden, leer = ganzes Video)</label>
+            <div class="pair" id="v-range">
+              <input type="number" id="v-start" min="0" step="0.1" placeholder="von" aria-label="von Sekunde" />
+              <input type="number" id="v-end" min="0" step="0.1" placeholder="bis" aria-label="bis Sekunde" />
+            </div>
+
+            <div id="v-fps-row" hidden>
+              <label class="name" for="v-fps">Gemessene Bildrate (fps)</label>
+              <input type="number" id="v-fps" min="1" max="1000" step="0.001" />
+            </div>
+
+            <label class="name" for="v-hfov">Bildwinkel (Grad)</label>
+            <input type="number" id="v-hfov" min="10" max="120" step="1" placeholder="unbekannt" />
+
+            <label class="name" for="v-capture">Aufnahmerate bei Zeitlupe (fps)</label>
+            <input type="number" id="v-capture" min="10" max="1000" step="1" placeholder="wie gemessen" />
+
+            <label class="name" for="v-model">Modell</label>
+            <select id="v-model">
+              <option value="pose_landmarker_full.task" selected>genau (9 MB)</option>
+              <option value="pose_landmarker_lite.task">schnell (5,5 MB)</option>
+            </select>
+
+            <label class="switch" style="margin-top: 0.4rem">
+              <input type="checkbox" id="v-flipdepth" />
+              <span class="text"
+                >Tiefenrichtung umkehren
+                <small>Nur nötig, wenn „Tiefenrichtung gesichert“ niedrig bleibt.</small></span
+              >
+            </label>
+          </div>
+        </details>
       </div>
     </div>
 
@@ -1441,6 +1676,55 @@
   </form>
 
   <main class="readout" id="readout">
+    <section class="panel" id="guide-panel">
+      <header><h2>So funktioniert es</h2><span class="aside">vier Schritte, ein Klick pro Schritt</span></header>
+      <div class="body">
+        <ol class="guide">
+          <li>
+            <b>Video auswählen.</b> MP4, MOV oder WebM, direkt vom Handy. Die App findet den Aufschlag
+            selbst, auch in einem längeren Clip.
+          </li>
+          <li>
+            <b>Körpergröße und Schlaghand eintragen.</b> Die Größe ist der einzige Maßstab, den eine
+            einzelne Kamera hat — ohne sie gibt es keine Zentimeter.
+          </li>
+          <li>
+            <b>Treffpunkt bestätigen.</b> Die App schlägt das Bild vor, in dem der Ball die Saiten
+            trifft. Mit ◀ ▶ nachprüfen, notfalls korrigieren, dann <em>Passt — auswerten</em>.
+          </li>
+          <li>
+            <b>Bericht lesen.</b> Zuerst „Was diese Aufnahme hergibt“: Was dort rot ist, taucht unten
+            als „nicht messbar“ wieder auf. Jeder Messwert hat ein Intervall und eine Vertrauensstufe;
+            <em>niedrig</em> heißt Anhaltspunkt, nicht Messung.
+          </li>
+        </ol>
+        <div class="callout-row">
+          <div>
+            <p class="eyebrow">Gute Aufnahme</p>
+            <ul>
+              <li>120 fps oder mehr, kein Zeitlupen-Export</li>
+              <li>Spieler füllt mindestens die halbe Bildhöhe</li>
+              <li>Stativ oder aufgelegt, seitlich bis leicht diagonal</li>
+              <li>Ganze Bewegung im Bild, inklusive Landung</li>
+            </ul>
+          </div>
+          <div>
+            <p class="eyebrow">Wird wenig hergeben</p>
+            <ul>
+              <li>Bildschirmmitschnitt eines Videos (Zeitlupe, Wiederholungen)</li>
+              <li>Totale vom ganzen Platz — der Spieler ist zu klein</li>
+              <li>30 fps: reicht für Haltung, nicht für Zeitmessungen</li>
+              <li>Starker Zoom ohne Angabe des Bildwinkels</li>
+            </ul>
+          </div>
+        </div>
+        <p class="prose">
+          Das Video verlässt Ihren Rechner nicht: Posenerkennung und Auswertung laufen vollständig im
+          Browser.
+        </p>
+      </div>
+    </section>
+
     <section class="panel">
       <header><h2>Ergebnis</h2><span class="aside" id="verdict-aside"></span></header>
       <div class="body">
@@ -1465,6 +1749,18 @@
       </div>
     </section>
 
+    <section class="panel" id="fit-panel" hidden>
+      <header><h2>Was diese Aufnahme hergibt</h2><span class="aside" id="fit-aside"></span></header>
+      <div class="body">
+        <p class="prose">
+          Vier Eigenschaften der Aufnahme entscheiden, welche Aussagen sie tragen kann. Alle vier sind
+          gemessen, nicht angenommen. Was hier rot ist, taucht im Bericht unten als „nicht messbar“
+          wieder auf — mit derselben Begründung.
+        </p>
+        <div id="fit-rows"></div>
+      </div>
+    </section>
+
     <section class="panel" id="mark-panel" hidden>
       <header><h2>Treffpunkt markieren</h2><span class="aside" id="mark-aside"></span></header>
       <div class="body">
@@ -1482,8 +1778,10 @@
           <span class="frames" id="mark-label">–</span>
         </div>
         <div class="transport">
+          <button type="button" class="primary" id="mark-run" style="width: auto; padding: 0.5rem 1.2rem">
+            Passt — auswerten
+          </button>
           <button type="button" class="play" id="mark-set">Treffpunkt hier setzen</button>
-          <button type="button" class="play" id="mark-run">Auswerten</button>
           <span class="frames" id="mark-current">kein Treffpunkt gesetzt</span>
         </div>
       </div>

@@ -239,6 +239,18 @@
     setupOrbit();
   }
 
+  /**
+   * The simulation controls are only in the way once real material is loaded.
+   * Greying them out left a column of dead inputs under the thing people were
+   * actually using.
+   */
+  function showSynthetic(visible) {
+    const block = $("synthetic");
+    if (!block) return;
+    block.hidden = !visible;
+    block.disabled = !visible;
+  }
+
   function setupClipLoading() {
     const zone = $("dropzone");
     const input = $("clipfile");
@@ -308,7 +320,7 @@
             ? " · Treffpunkt bei " + state.clip.contactFrame
             : " · kein Treffpunkt markiert");
         $("clipbadge").dataset.active = "true";
-        $("synthetic").disabled = true;
+        showSynthetic(false);
         runAnalysis();
       };
       reader.onerror = () => fail("Die Datei konnte nicht gelesen werden.");
@@ -355,7 +367,7 @@
       state.clip = null;
       state.clipName = "";
       $("clipbadge").dataset.active = "false";
-      $("synthetic").disabled = false;
+      showSynthetic(true);
       input.value = "";
       runAnalysis();
     });
@@ -1512,7 +1524,7 @@
       $("clipname").textContent = name;
       $("clipdepth").textContent = meta || (clip.frames ? clip.frames.length + " Bilder" : "");
       $("clipbadge").dataset.active = "true";
-      $("synthetic").disabled = true;
+      showSynthetic(false);
       runAnalysis();
     },
     fail,

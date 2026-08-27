@@ -1,5 +1,23 @@
 # 13 · Eigene Videos auswerten
 
+## Anleitung in vier Schritten
+
+1. **Video auswählen.** MP4, MOV oder WebM, direkt vom Handy. Die App sucht den
+   Aufschlag selbst — bei längeren Clips erst grob über das ganze Video, dann
+   genau über die zwei Sekunden um den Treffer.
+2. **Körpergröße und Schlaghand eintragen.** Die Größe ist der einzige Maßstab,
+   den eine einzelne Kamera hat.
+3. **Treffpunkt bestätigen.** Die App schlägt das Bild vor, in dem die
+   Schlaghand am höchsten über der Schulter steht — das ist der Treffpunkt auf
+   ein bis zwei Bilder genau. Mit ◀ ▶ prüfen, notfalls korrigieren,
+   dann *Passt — auswerten*.
+4. **Bericht lesen.** Ganz oben steht „Was diese Aufnahme hergibt“: Bildfolge,
+   Größe des Spielers im Bild, Erkennungsquote, Bildwinkel. Was dort rot ist,
+   taucht unten als „nicht messbar“ wieder auf — mit derselben Begründung.
+
+Alles Weitere — Bildrate messen, Zeitlupe erkennen, Wiederholungen aussortieren,
+den richtigen Spieler von Zuschauern unterscheiden — macht die App selbst.
+
 ## Der kürzeste Weg: die eigenständige Seite
 
 ```bash

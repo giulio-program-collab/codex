@@ -18,6 +18,32 @@
   "use strict";
 
   const $ = (id) => document.getElementById(id);
+
+  /** Moves the little step rail at the top of the panel. */
+  function step(active) {
+    const items = document.querySelectorAll("#steps li");
+    items.forEach((li) => {
+      const n = Number(li.dataset.step);
+      li.dataset.state = n < active ? "done" : n === active ? "active" : "";
+    });
+  }
+
+  /**
+   * Monotonic timestamps for the estimator.
+   *
+   * MediaPipe's video mode rejects a timestamp that is not greater than the
+   * last one, and it has no way to know that the coarse search and the fine
+   * pass are two sweeps over the same clip. A counter that only ever goes up
+   * keeps both sweeps legal.
+   */
+  let clock = 0;
+  const nextTimestamp = () => (clock += 33);
+
+  function progress(fraction) {
+    const bar = $("v-progress");
+    bar.hidden = fraction === null;
+    if (fraction !== null) bar.firstElementChild.style.width = Math.round(fraction * 100) + "%";
+  }
   const VENDOR = "./vendor/";
 
   /** MediaPipe's 33 landmarks, in its own order — the clip loader knows it. */
@@ -99,7 +125,7 @@
           {
             baseOptions: { modelAssetBuffer: inlineModel, delegate },
             runningMode: "VIDEO",
-            numPoses: 1,
+            numPoses: 2,
             minPoseDetectionConfidence: 0.3,
             minPosePresenceConfidence: 0.3,
             minTrackingConfidence: 0.3,
@@ -130,7 +156,7 @@
     const options = (delegate) => ({
       baseOptions: { modelAssetPath: VENDOR + modelFile, delegate },
       runningMode: "VIDEO",
-      numPoses: 1,
+      numPoses: 2,
       // A serve is fast and self-occluding; a lower gate keeps the racket arm
       // rather than dropping it, and the pipeline weights by score anyway.
       minPoseDetectionConfidence: 0.3,
@@ -168,6 +194,7 @@
       state.video = video;
       state.width = video.videoWidth;
       state.height = video.videoHeight;
+      state.coverage = null;
       $("videoname").textContent = file.name;
       $("videometa").textContent =
         video.videoWidth +
@@ -180,13 +207,11 @@
       $("video-settings").hidden = false;
       // A serve is under two seconds. Offering the whole of a thirty-second
       // clip by default would mean a four-minute wait that looks like a hang.
-      $("v-start").value = "0";
       $("v-start").max = String(video.duration.toFixed(1));
       $("v-end").max = String(video.duration.toFixed(1));
-      $("v-end").value = String(Math.min(video.duration, 6).toFixed(1));
       $("v-status").textContent =
-        "Bereit. Ausschnitt prüfen, dann „Posen erkennen“. Die Bildrate wird dabei gemessen — " +
-        "die Datei verrät sie nicht.";
+        "Körpergröße und Schlaghand eintragen, dann Analyse starten. Alles Weitere findet die App selbst.";
+      step(2);
       $("video-settings").scrollIntoView({ block: "nearest", behavior: "smooth" });
     });
 
@@ -286,6 +311,9 @@
 
     const button = $("v-extract");
     button.disabled = true;
+    button.textContent = "Analyse läuft …";
+    step(3);
+    progress(0);
     const status = (text) => ($("v-status").textContent = text);
 
     try {
@@ -316,14 +344,39 @@
       thumb.height = Math.round(state.height * thumbScale);
       const thumbCtx = thumb.getContext("2d");
 
-      const startS = Math.max(0, Number($("v-start").value) || 0);
-      const endS = Math.min(video.duration, Number($("v-end").value) || video.duration);
+      // The whole video unless someone said otherwise. Finding the serve is the
+      // app's job, not a number the reader has to look up.
+      let startS = Math.max(0, Number($("v-start").value) || 0);
+      let endS = Math.min(video.duration, Number($("v-end").value) || video.duration);
+
+      // A long clip is searched before it is measured.
+      //
+      // Somebody hands the app a rally, a warm-up or a whole game and expects
+      // the serve to be found. Stepping through every frame of that at three
+      // frames a second is minutes of waiting for material that is mostly
+      // someone walking to the baseline. So: a coarse sweep first, ten times
+      // faster, to find where the hitting hand goes highest; then the careful
+      // pass over the two seconds around it.
+      const spanFrames = (endS - startS) * state.fps;
+      if (spanFrames > 400 && !Number($("v-start").value) && !Number($("v-end").value)) {
+        status("Der Aufschlag wird im Video gesucht …");
+        const range = await findStroke(video, landmarker, canvas, ctx, startS, endS, status);
+        if (range) {
+          startS = range.startS;
+          endS = range.endS;
+          status(
+            `Aufschlag gefunden bei ${range.centreS.toFixed(1)} s. Ausgewertet wird ` +
+              `${startS.toFixed(1)}–${endS.toFixed(1)} s.`,
+          );
+        }
+      }
+
       const available = Math.max(1, Math.floor((endS - startS) * state.fps));
-      // Nine hundred frames is a hard ceiling so a mistyped range cannot turn
-      // into a ten-minute wait.
+      // A ceiling so a mistyped range cannot turn into a ten-minute wait.
       const total = Math.min(900, available);
       state.startS = startS;
       const flip = $("v-flipdepth").checked ? -1 : 1;
+      lastCentre = null;
       const frames = [];
       const thumbnails = [];
       const signatures = [];
@@ -338,13 +391,17 @@
 
         // Timestamps must increase strictly; the frame index in milliseconds
         // does that even when two frames share a presentation time.
-        const result = landmarker.detectForVideo(canvas, Math.round((i * 1000) / state.fps) + i);
+        const result = landmarker.detectForVideo(canvas, nextTimestamp());
 
         const keypoints = new Array(33).fill(null);
         let depth = null;
-        if (result.landmarks && result.landmarks[0]) {
+        // Courts have more than one person on them: an opponent at the far
+        // baseline, a ball kid at the fence. The server is the largest figure
+        // in the frame, so the largest pose is the one to keep.
+        const chosen = pickPose(result.landmarks, lastCentre);
+        if (chosen >= 0) {
           found++;
-          const image = result.landmarks[0];
+          const image = result.landmarks[chosen];
           for (let k = 0; k < image.length; k++) {
             const lm = image[k];
             const score = lm.visibility === undefined ? 0.8 : lm.visibility;
@@ -354,7 +411,7 @@
               Math.round(score * 1000) / 1000,
             ];
           }
-          const world = result.worldLandmarks && result.worldLandmarks[0];
+          const world = result.worldLandmarks && result.worldLandmarks[chosen];
           if (world) {
             // World landmarks are metres from the hip centre. MediaPipe's z
             // grows away from the camera, which is the direction the clip
@@ -375,6 +432,7 @@
         if (i % 5 === 0) {
           const perFrame = (Date.now() - startedAt) / Math.max(1, i + 1);
           const remaining = Math.round((perFrame * (total - i - 1)) / 1000);
+          progress((i + 1) / total);
           status(
             `Bild ${i + 1} von ${total} · ${found} mit erkannter Person` +
               (remaining > 2 ? ` · noch ca. ${remaining} s` : ""),
@@ -417,6 +475,10 @@
         state.thumbnails = thumbnails;
       }
 
+      state.coverage = found / Math.max(1, frames.length);
+      state.height = state.height || 0;
+      state.playerHeightPx = medianPlayerHeight(state.frames);
+
       if (!found) {
         window.Playground.fail(
           "In keinem Bild wurde eine Person erkannt. Häufigste Ursachen: Der Spieler ist zu klein im " +
@@ -427,6 +489,10 @@
         return;
       }
 
+      // Exposed so the extracted track can be inspected without re-running the
+      // estimator; the analysis never reads it.
+      window.__BV_FRAMES = state.frames;
+      renderFit();
       status(
         `${state.frames.length} Bilder bei ${state.fps} fps, in ` +
           `${Math.round((found / frames.length) * 100)} % eine Person erkannt.` +
@@ -445,6 +511,8 @@
       status("Fehlgeschlagen.");
     } finally {
       button.disabled = false;
+      button.textContent = "Analyse starten";
+      progress(null);
     }
   }
 
@@ -463,6 +531,117 @@
     // Two decodes of the same source frame are bit-identical; anything the
     // player actually did moves several of these cells by more than noise.
     return sum / a.length > 0.6;
+  }
+
+  /**
+   * Coarse sweep for the stroke in a long clip.
+   *
+   * Samples about forty frames across the whole video, scores each by how far
+   * the hitting hand is above the shoulder, and returns a window of a couple of
+   * seconds around the best one. It only has to be right to within a second;
+   * the fine pass does the rest.
+   */
+  async function findStroke(video, landmarker, canvas, ctx, startS, endS, status) {
+    const samples = 40;
+    lastCentre = null;
+    const sampled = [];
+    for (let i = 0; i < samples; i++) {
+      const t = startS + ((endS - startS) * i) / (samples - 1);
+      await seekTo(video, Math.min(t, video.duration - 0.001));
+      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+      const result = landmarker.detectForVideo(canvas, nextTimestamp());
+      const chosen = pickPose(result.landmarks, lastCentre);
+      if (chosen >= 0) {
+        const pose = result.landmarks[chosen];
+        sampled.push({
+          t,
+          keypoints: pose.map((lm) => [lm.x * state.width, lm.y * state.height, lm.visibility ?? 0.8]),
+        });
+      }
+      if (i % 5 === 0) {
+        progress(i / samples);
+        status(`Suche den Aufschlag … ${Math.round((i / samples) * 100)} %`);
+        await new Promise((r) => setTimeout(r, 0));
+      }
+    }
+    const peak = highestHand(sampled);
+    if (peak === null) return null;
+    const centre = sampled[peak].t;
+    // The stroke runs from the wind-up to the landing, and the hand is highest
+    // at contact — so most of the window belongs before it.
+    return {
+      centreS: centre,
+      startS: Math.max(startS, centre - 1.8),
+      endS: Math.min(endS, centre + 1.0),
+    };
+  }
+
+  /**
+   * Which of the detected people is the player?
+   *
+   * The largest figure, until there is a previous frame to compare with — after
+   * that, the one nearest to where the player just was. On the Alcaraz clip the
+   * size rule alone jumped to a spectator in six frames out of forty-three, and
+   * a wrist that teleports into the stands is worse than a missing one, because
+   * it looks like a measurement.
+   */
+  function pickPose(all, previous) {
+    if (!all || !all.length) return -1;
+    const centreOf = (pose) => {
+      const hipL = pose[23];
+      const hipR = pose[24];
+      if (!hipL || !hipR) return null;
+      return { x: (hipL.x + hipR.x) / 2, y: (hipL.y + hipR.y) / 2 };
+    };
+    const sizeOf = (pose) => {
+      let minY = Infinity;
+      let maxY = -Infinity;
+      for (const lm of pose) {
+        if (lm.y < minY) minY = lm.y;
+        if (lm.y > maxY) maxY = lm.y;
+      }
+      return maxY - minY;
+    };
+
+    let best = -1;
+    let bestScore = -Infinity;
+    for (let i = 0; i < all.length; i++) {
+      const size = sizeOf(all[i]);
+      const centre = centreOf(all[i]);
+      let score = size;
+      if (previous && centre) {
+        // Normalised distance travelled since the last frame; a real player
+        // moves a fraction of his own height between frames.
+        const moved = Math.hypot(centre.x - previous.x, centre.y - previous.y);
+        score = size - moved * 3;
+      }
+      if (score > bestScore) {
+        bestScore = score;
+        best = i;
+      }
+    }
+    if (best >= 0) {
+      const centre = centreOf(all[best]);
+      if (centre) lastCentre = centre;
+    }
+    return best;
+  }
+
+  /** Hip midpoint of the pose kept in the previous frame, in normalised units. */
+  let lastCentre = null;
+
+  /** Median nose-to-ankle distance in pixels: how large the player is. */
+  function medianPlayerHeight(frames) {
+    const values = [];
+    for (const frame of frames) {
+      const nose = frame.keypoints[0];
+      const ankle = frame.keypoints[28] || frame.keypoints[27];
+      if (!nose || !ankle || nose[2] < 0.2 || ankle[2] < 0.2) continue;
+      values.push(Math.hypot(nose[0] - ankle[0], nose[1] - ankle[1]));
+    }
+    if (!values.length) return 0;
+    values.sort((a, b) => a - b);
+    return values[Math.floor(values.length / 2)] / 0.936;
   }
 
   /** A 24×24 luma thumbprint of a frame, for the duplicate test. */
@@ -486,14 +665,75 @@
   /* Marking the contact frame                                         */
   /* ---------------------------------------------------------------- */
 
+  /**
+   * Proposes the contact frame from the pose alone.
+   *
+   * At contact the hitting hand is at its highest and the arm at its longest;
+   * both peak within a frame or two of the ball leaving the strings. Neither is
+   * exact — the racket keeps extending after the wrist stops — so this is a
+   * proposal to be corrected by eye, not a measurement. But it puts the
+   * playhead within a couple of frames of the answer, which is the difference
+   * between confirming something and hunting for it.
+   */
+  function proposeContact() {
+    const best = highestHand(state.frames);
+    return best === null ? Math.floor(state.frames.length / 2) : best;
+  }
+
+  /**
+   * Frame in which the hitting hand stands highest above the shoulder.
+   *
+   * Only frames where the hand is genuinely above the shoulder count. An
+   * earlier version added the arm's reach to the height and scored the
+   * follow-through highest, because a fully extended arm pointing down is long
+   * too — the picked frame was half a second past contact. Reach only breaks
+   * ties among frames that already have the hand overhead, and everything is
+   * divided by the shoulder width so a zoom cannot tilt the choice.
+   */
+  function highestHand(frames) {
+    const side = $("v-hand").value === "left"
+      ? { hand: 19, wrist: 15, shoulder: 11, other: 12 }
+      : { hand: 20, wrist: 16, shoulder: 12, other: 11 };
+    const raw = frames.map((frame) => {
+      const point = frame.keypoints[side.hand] && frame.keypoints[side.hand][2] > 0.2
+        ? frame.keypoints[side.hand]
+        : frame.keypoints[side.wrist];
+      const shoulder = frame.keypoints[side.shoulder];
+      const other = frame.keypoints[side.other];
+      if (!point || !shoulder || point[2] < 0.2) return null;
+      const width = other ? Math.hypot(shoulder[0] - other[0], shoulder[1] - other[1]) : 0;
+      const scale = width > 4 ? width : 40;
+      // The image y axis points down, so "above" is a positive difference.
+      return (shoulder[1] - point[1]) / scale;
+    });
+
+    // Median of three before the maximum. A single mis-detected frame — the
+    // estimator finding an arm where there is none — otherwise wins outright,
+    // and picked frame 2 of 43 on a clip whose contact was at 32.
+    let best = null;
+    for (let i = 0; i < raw.length; i++) {
+      const around = [raw[i - 1], raw[i], raw[i + 1]].filter((v) => v !== null && v !== undefined);
+      if (around.length < 2 || raw[i] === null) continue;
+      around.sort((a, b) => a - b);
+      const smoothed = around[Math.floor(around.length / 2)];
+      if (smoothed <= 0) continue;
+      if (!best || smoothed > best.score) best = { index: i, score: smoothed };
+    }
+    return best ? best.index : null;
+  }
+
   function openMarker() {
     const panel = $("mark-panel");
     panel.hidden = false;
     const slider = $("mark-frame");
     slider.max = String(state.frames.length - 1);
-    slider.value = String(Math.floor(state.frames.length / 2));
+    const proposed = proposeContact();
+    slider.value = String(proposed);
+    state.contactFrame = proposed;
+    $("mark-current").textContent = "Vorschlag: Bild " + proposed + " — mit ◀ ▶ prüfen";
     $("mark-aside").textContent = state.frames.length + " Bilder · " + state.fps + " fps";
-    drawMark(Number(slider.value));
+    drawMark(proposed);
+    step(3);
     panel.scrollIntoView({ block: "start", behavior: "smooth" });
   }
 
@@ -544,6 +784,107 @@
   /* ---------------------------------------------------------------- */
   /* Handing over to the engine                                        */
   /* ---------------------------------------------------------------- */
+
+  /**
+   * What this footage can carry.
+   *
+   * Every clip gets analysed; not every clip can support every claim, and the
+   * honest thing is to say which is which before the report does. The four
+   * things that decide it are all measured rather than assumed: how often the
+   * picture actually changes, how large the player is in it, how reliably the
+   * estimator found him, and whether the focal length is known.
+   */
+  function assessFootage() {
+    const rate = state.fps;
+    const coverage = state.coverage ?? 1;
+    const heightPx = state.playerHeightPx ?? 0;
+    const relative = state.height ? heightPx / state.height : 0;
+    const rows = [];
+
+    rows.push({
+      label: "Bildfolge",
+      value: rate.toFixed(0) + " Hz",
+      verdict:
+        rate >= 120
+          ? { tone: "good", text: "reicht für die Kette und für Schlägergeschwindigkeit" }
+          : rate >= 60
+            ? { tone: "warn", text: "reicht für Winkel und Treffpunkt, nicht für die Kettenzeiten" }
+            : { tone: "alert", text: "zu grob für Zeitmessungen; Winkel nur als Anhaltspunkt" },
+    });
+    rows.push({
+      label: "Spieler im Bild",
+      value: Math.round(relative * 100) + " % der Bildhöhe",
+      verdict:
+        relative >= 0.45
+          ? { tone: "good", text: "groß genug für stabile Gelenkpunkte" }
+          : relative >= 0.25
+            ? { tone: "warn", text: "klein; die Gelenkpunkte werden unruhig" }
+            : { tone: "alert", text: "zu klein — näher heran oder zuschneiden" },
+    });
+    rows.push({
+      label: "Erkennung",
+      value: Math.round(coverage * 100) + " % der Bilder",
+      verdict:
+        coverage >= 0.95
+          ? { tone: "good", text: "der Spieler wurde durchgehend gefunden" }
+          : coverage >= 0.8
+            ? { tone: "warn", text: "einzelne Lücken werden überbrückt" }
+            : { tone: "alert", text: "zu viele Lücken für eine durchgehende Bewegung" },
+    });
+    const hfov = Number($("v-hfov").value);
+    rows.push({
+      label: "Bildwinkel",
+      value: hfov ? hfov + "°" : "unbekannt",
+      verdict: hfov
+        ? { tone: "good", text: "Längenangaben sind maßstabsgetreu" }
+        : { tone: "warn", text: "wird geschätzt; alle Längen entsprechend unsicher" },
+    });
+    if (state.duplicateFraction > 0.15) {
+      rows.push({
+        label: "Zeitlupe",
+        value: Math.round(state.duplicateFraction * 100) + " % Wiederholungen",
+        verdict: {
+          tone: "alert",
+          text: "Bildschirmmitschnitt oder verlangsamt — gerechnet wird mit der echten Bildfolge",
+        },
+      });
+    }
+    return rows;
+  }
+
+  function renderFit() {
+    const rows = assessFootage();
+    const host = document.getElementById("fit-rows");
+    host.innerHTML = "";
+    let worst = "good";
+    for (const row of rows) {
+      if (row.verdict.tone === "alert") worst = "alert";
+      else if (row.verdict.tone === "warn" && worst !== "alert") worst = "warn";
+      const div = document.createElement("div");
+      div.className = "fitrow";
+      div.dataset.tone = row.verdict.tone;
+      const label = document.createElement("span");
+      const dot = document.createElement("i");
+      dot.className = "dot";
+      label.appendChild(dot);
+      label.appendChild(document.createTextNode(row.label));
+      const value = document.createElement("span");
+      value.className = "v";
+      value.textContent = row.value;
+      const text = document.createElement("span");
+      text.className = "t";
+      text.textContent = row.verdict.text;
+      div.append(label, value, text);
+      host.appendChild(div);
+    }
+    document.getElementById("fit-aside").textContent =
+      worst === "good"
+        ? "trägt eine vollständige Auswertung"
+        : worst === "warn"
+          ? "trägt einen Teil der Auswertung"
+          : "trägt nur Anhaltspunkte";
+    document.getElementById("fit-panel").hidden = false;
+  }
 
   function buildClip() {
     const corrected = Number($("v-fps").value);
@@ -633,6 +974,9 @@
     // reaches for first is the video and the older zone refused it.
     const clipBlock = $("clip-block");
     if (clipBlock) clipBlock.hidden = true;
+    // On the video page the simulation is a side show, not the first thing.
+    const synthetic = $("synthetic");
+    if (synthetic) synthetic.hidden = true;
     // This page *is* the video page; the link to it belongs on the other one.
     const link = $("videolink");
     if (link) link.hidden = true;
