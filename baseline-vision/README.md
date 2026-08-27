@@ -128,4 +128,5 @@ zurückziehen, das seinen eigenen Belegen widerspricht.
 | [10 Implementierungsplan](docs/10-implementierungsplan.md) | Reihenfolge, Aufwand, Priorisierung                    |
 | [11 Risiken und Grenzen](docs/11-risiken.md)               | Was das System nicht kann und nie können wird          |
 | [13 Eigene Videos](docs/13-eigene-videos.md)               | Wie echtes Videomaterial in die Messkette kommt        |
+| [14 Aufnahme-Anforderungen](docs/14-videoanforderungen.html) | Welche Schwellen ein Video erfüllen muss              |
 | [12 Ergebnisbericht](docs/12-ergebnis.html)                | Alt gegen neu, gemessen: Sinner-Test, Genauigkeit, Grenze |

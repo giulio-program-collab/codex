@@ -1,0 +1,479 @@
+<title>Aufnahme-Anforderungen</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link
+  rel="stylesheet"
+  href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;600;700&family=IBM+Plex+Mono:wght@400;500&family=Source+Serif+4:opsz,wght@8..60,400;8..60,600&display=swap"
+/>
+
+<style>
+  :root {
+    --ground: #e6eaec;
+    --surface: #fbfcfd;
+    --surface-sunk: #eff2f4;
+    --ink: #101619;
+    --ink-soft: #57646c;
+    --ink-faint: #87949c;
+    --line: #ccd5da;
+    --accent: #0b6b68;
+    --accent-wash: rgba(11, 107, 104, 0.1);
+    --warn: #8f5c05;
+    --warn-wash: rgba(143, 92, 5, 0.1);
+    --alert: #92261d;
+    --alert-wash: rgba(146, 38, 29, 0.09);
+    --display: "Archivo", "Helvetica Neue", Arial, sans-serif;
+    --body: "Source Serif 4", Georgia, "Times New Roman", serif;
+    --data: "IBM Plex Mono", ui-monospace, Menlo, monospace;
+    color-scheme: light;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --ground: #0d1113;
+      --surface: #151b1e;
+      --surface-sunk: #101618;
+      --ink: #e7edef;
+      --ink-soft: #97a5ac;
+      --ink-faint: #6f7d85;
+      --line: #263036;
+      --accent: #4dbdb4;
+      --accent-wash: rgba(77, 189, 180, 0.13);
+      --warn: #d9a24a;
+      --warn-wash: rgba(217, 162, 74, 0.13);
+      --alert: #e2766a;
+      --alert-wash: rgba(226, 118, 106, 0.12);
+      color-scheme: dark;
+    }
+  }
+
+  :root[data-theme="dark"] {
+    --ground: #0d1113;
+    --surface: #151b1e;
+    --surface-sunk: #101618;
+    --ink: #e7edef;
+    --ink-soft: #97a5ac;
+    --ink-faint: #6f7d85;
+    --line: #263036;
+    --accent: #4dbdb4;
+    --accent-wash: rgba(77, 189, 180, 0.13);
+    --warn: #d9a24a;
+    --warn-wash: rgba(217, 162, 74, 0.13);
+    --alert: #e2766a;
+    --alert-wash: rgba(226, 118, 106, 0.12);
+    color-scheme: dark;
+  }
+
+  * {
+    box-sizing: border-box;
+  }
+
+  body {
+    margin: 0;
+    background: var(--ground);
+    color: var(--ink);
+    font-family: var(--body);
+    font-size: 1rem;
+    line-height: 1.55;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .sheet {
+    max-width: 58rem;
+    margin: 0 auto;
+    padding: clamp(1.5rem, 4vw, 3rem) clamp(1rem, 4vw, 2.5rem) 4rem;
+    display: flex;
+    flex-direction: column;
+    gap: clamp(1.5rem, 3vw, 2.25rem);
+  }
+
+  h1,
+  h2,
+  h3 {
+    font-family: var(--display);
+    font-weight: 600;
+    line-height: 1.14;
+    letter-spacing: -0.018em;
+    text-wrap: balance;
+    margin: 0;
+  }
+
+  h1 {
+    font-size: clamp(1.9rem, 4.5vw, 2.7rem);
+  }
+
+  h2 {
+    font-size: clamp(1.1rem, 2.2vw, 1.35rem);
+  }
+
+  p {
+    margin: 0;
+    max-width: 62ch;
+  }
+
+  .eyebrow {
+    font-family: var(--data);
+    font-size: 0.68rem;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    color: var(--ink-faint);
+  }
+
+  header.top {
+    display: flex;
+    flex-direction: column;
+    gap: 0.6rem;
+    padding-bottom: 1.3rem;
+    border-bottom: 2px solid var(--ink);
+  }
+
+  header.top p {
+    color: var(--ink-soft);
+    font-size: 1.05rem;
+  }
+
+  /* A gate: what it costs to fail it, and what it buys to pass it. */
+  section.gate {
+    display: flex;
+    flex-direction: column;
+    gap: 0.8rem;
+  }
+
+  section.gate > .head {
+    display: flex;
+    align-items: baseline;
+    gap: 0.7rem;
+    border-bottom: 1px solid var(--line);
+    padding-bottom: 0.45rem;
+  }
+
+  section.gate > .head .tier {
+    font-family: var(--data);
+    font-size: 0.7rem;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    padding: 0.1rem 0.4rem;
+    border-radius: 2px;
+    white-space: nowrap;
+  }
+
+  section.gate[data-tier="hart"] > .head .tier {
+    background: var(--alert-wash);
+    color: var(--alert);
+  }
+
+  section.gate[data-tier="winkel"] > .head .tier {
+    background: var(--accent-wash);
+    color: var(--accent);
+  }
+
+  section.gate[data-tier="zeit"] > .head .tier {
+    background: var(--warn-wash);
+    color: var(--warn);
+  }
+
+  .req {
+    display: grid;
+    grid-template-columns: minmax(10rem, 15rem) minmax(6rem, 9rem) minmax(0, 1fr);
+    gap: 0.4rem 1.1rem;
+    align-items: baseline;
+    padding: 0.55rem 0;
+    border-bottom: 1px dotted var(--line);
+  }
+
+  .req:last-child {
+    border-bottom: 0;
+  }
+
+  .req .what {
+    font-weight: 600;
+    font-size: 0.95rem;
+  }
+
+  .req .value {
+    font-family: var(--data);
+    font-size: 0.85rem;
+    font-variant-numeric: tabular-nums;
+    color: var(--accent);
+  }
+
+  .req .why {
+    color: var(--ink-soft);
+    font-size: 0.9rem;
+  }
+
+  @media (max-width: 680px) {
+    .req {
+      grid-template-columns: minmax(0, 1fr);
+      gap: 0.15rem;
+    }
+  }
+
+  .recipe {
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-left: 3px solid var(--accent);
+    padding: 1rem 1.2rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.7rem;
+  }
+
+  .recipe ol {
+    margin: 0;
+    padding-left: 1.2rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.45rem;
+    font-size: 0.95rem;
+  }
+
+  .recipe ol b {
+    font-family: var(--display);
+    font-weight: 600;
+  }
+
+  .killers {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+    gap: 0.8rem;
+  }
+
+  .killer {
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-left: 3px solid var(--alert);
+    padding: 0.75rem 0.9rem;
+  }
+
+  .killer h3 {
+    font-size: 0.92rem;
+    margin-bottom: 0.25rem;
+  }
+
+  .killer p {
+    font-size: 0.86rem;
+    color: var(--ink-soft);
+  }
+
+  .limit {
+    background: var(--surface-sunk);
+    border: 1px solid var(--line);
+    padding: 1rem 1.2rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+
+  .limit p {
+    font-size: 0.93rem;
+    color: var(--ink-soft);
+    max-width: 66ch;
+  }
+
+  footer {
+    border-top: 1px solid var(--line);
+    padding-top: 1rem;
+    font-size: 0.83rem;
+    color: var(--ink-soft);
+  }
+
+  code {
+    font-family: var(--data);
+    font-size: 0.82rem;
+    background: var(--surface-sunk);
+    border: 1px solid var(--line);
+    padding: 0.05rem 0.3rem;
+  }
+</style>
+
+<div class="sheet">
+  <header class="top">
+    <p class="eyebrow">Baseline Vision · Aufnahme-Anforderungen</p>
+    <h1>Was ein auswertbares Video mitbringen muss</h1>
+    <p>
+      Jede Zahl hier ist eine Schwelle, die im Code steht und im Bericht auftaucht — keine Empfehlung.
+      Die App misst jede davon selbst und zeigt sie unter „Was diese Aufnahme hergibt“.
+    </p>
+  </header>
+
+  <section class="gate" data-tier="hart">
+    <div class="head"><span class="tier">Pflicht</span><h2>Ohne das passiert gar nichts</h2></div>
+
+    <div class="req">
+      <span class="what">Ganze Bewegung im Bild</span>
+      <span class="value">Ausholen bis Landung</span>
+      <span class="why">Die Phasenerkennung braucht den Ablauf, nicht nur den Treffer.</span>
+    </div>
+    <div class="req">
+      <span class="what">Spieler groß genug</span>
+      <span class="value">≥ 25 % Bildhöhe</span>
+      <span class="why">
+        Darunter wackeln die Gelenkpunkte stärker als das, was gemessen werden soll. Ab 45 % stabil.
+      </span>
+    </div>
+    <div class="req">
+      <span class="what">Spieler erkannt</span>
+      <span class="value">≥ 80 % der Bilder</span>
+      <span class="why">
+        Einzelne Lücken werden überbrückt. Gelenke unter 60 % Abdeckung meldet der Bericht namentlich.
+      </span>
+    </div>
+    <div class="req">
+      <span class="what">Körpergröße bekannt</span>
+      <span class="value">auf ±2 cm</span>
+      <span class="why">Der einzige Maßstab, den eine einzelne Kamera hat. Ohne sie keine Zentimeter.</span>
+    </div>
+    <div class="req">
+      <span class="what">Treffpunkt sichtbar</span>
+      <span class="value">ein Bild</span>
+      <span class="why">
+        Die App schlägt ihn vor, Sie bestätigen. Er ist der Bezugspunkt jeder Zeitmessung.
+      </span>
+    </div>
+    <div class="req">
+      <span class="what">Format lesbar</span>
+      <span class="value">H.264 · VP8/9</span>
+      <span class="why">
+        MP4, MOV und WebM. HEVC vom iPhone lesen viele Browser nicht — in der Foto-App als
+        „Kompatibel“ exportieren.
+      </span>
+    </div>
+    <div class="req">
+      <span class="what">Analysequalität</span>
+      <span class="value">≥ 55 / 100</span>
+      <span class="why">
+        Darunter gibt es Messwerte, aber kein Gesamturteil. Die Schwelle liegt dort, wo die
+        Messunsicherheit die Streuung der Referenzgruppe übersteigt.
+      </span>
+    </div>
+  </section>
+
+  <section class="gate" data-tier="winkel">
+    <div class="head"><span class="tier">Für Winkel</span><h2>Knieflexion, Rumpfneigung, Treffpunkthöhe</h2></div>
+
+    <div class="req">
+      <span class="what">Echte Bildfolge</span>
+      <span class="value">≥ 60 Hz</span>
+      <span class="why">
+        Gemeint ist, wie oft sich das Bild wirklich ändert — nicht, was die Datei behauptet. Ein
+        Bildschirmmitschnitt mit 55 fps kann 14 Hz echte Bildfolge haben.
+      </span>
+    </div>
+    <div class="req">
+      <span class="what">Keine Zeitlupe im Export</span>
+      <span class="value">0 % Wiederholungen</span>
+      <span class="why">
+        Verlangsamt exportiertes Material wiederholt jedes Quellbild mehrfach. Die App erkennt und
+        entfernt das, aber die Auflösung ist damit verloren.
+      </span>
+    </div>
+    <div class="req">
+      <span class="what">Tiefenrichtung geklärt</span>
+      <span class="value">≥ 0,70</span>
+      <span class="why">
+        Kommt in der App automatisch vom Posenmodell. Bleibt der Wert darunter, wird kein Winkel
+        zitiert — ein Winkel aus ungeklärter Tiefe ist ein Winkel aus der Bildebene.
+      </span>
+    </div>
+    <div class="req">
+      <span class="what">Bildwinkel angeben</span>
+      <span class="value">optional</span>
+      <span class="why">
+        Ohne ihn wird geschätzt; Winkel bleiben gültig, Längenangaben werden unsicherer. Bei Zoom
+        unbedingt eintragen.
+      </span>
+    </div>
+  </section>
+
+  <section class="gate" data-tier="zeit">
+    <div class="head"><span class="tier">Für Zeiten</span><h2>Kinetische Kette und Schlägergeschwindigkeit</h2></div>
+
+    <div class="req">
+      <span class="what">Kettenzeiten</span>
+      <span class="value">≥ 120 Hz · 3 Würfe</span>
+      <span class="why">Bei 60–120 Hz sind es 5 Wiederholungen. Darunter: keine Zeitaussage.</span>
+    </div>
+    <div class="req">
+      <span class="what">Schlägerkopf-Tempo</span>
+      <span class="value">≥ 120 Hz</span>
+      <span class="why">
+        Bei 60 Hz legt der Schlägerkopf zwischen zwei Bildern über einen halben Meter zurück; die
+        Bahn ist dann geraten, nicht gemessen.
+      </span>
+    </div>
+    <div class="req">
+      <span class="what">Mehrere Aufschläge</span>
+      <span class="value">3–6 einzeln</span>
+      <span class="why">
+        Erst der Mittelwert trägt eine Aussage, und die Streuung zwischen den Würfen ist für einen
+        Trainer oft der interessantere Wert.
+      </span>
+    </div>
+  </section>
+
+  <div class="recipe">
+    <p class="eyebrow">Aufnahme-Rezept</p>
+    <ol>
+      <li>
+        <b>Bildrate im Kameramenü auf 120 oder 240 fps.</b> Nicht die Zeitlupen-Funktion mit
+        verlangsamtem Export — die schreibt jedes Bild mehrfach.
+      </li>
+      <li>
+        <b>Handy auflegen oder Stativ.</b> Seitlich bis 45° diagonal zur Grundlinie, auf Hüft- bis
+        Kopfhöhe, gern erhöht.
+      </li>
+      <li>
+        <b>Abstand so wählen, dass der Spieler die halbe Bildhöhe füllt</b> — und im Bild bleibt,
+        wenn er hochspringt und landet.
+      </li>
+      <li><b>Nicht zoomen, nicht schwenken.</b> Sonst den Bildwinkel notieren und eintragen.</li>
+      <li><b>3 bis 6 Aufschläge aufnehmen</b>, jeden als eigenen Clip von etwa fünf Sekunden.</li>
+    </ol>
+  </div>
+
+  <section class="gate">
+    <div class="head"><h2>Was eine Aufnahme wertlos macht</h2></div>
+    <div class="killers">
+      <div class="killer">
+        <h3>Bildschirmmitschnitt</h3>
+        <p>
+          Ein abgefilmtes Video verliert drei von vier Bildern an Wiederholungen. Ihr Alcaraz-Clip:
+          55 fps in der Datei, 18 Hz in Wirklichkeit.
+        </p>
+      </div>
+      <div class="killer">
+        <h3>Totale vom ganzen Platz</h3>
+        <p>Der Spieler misst 100 Pixel; jedes Gelenk wackelt um mehr, als der Messwert unterscheiden soll.</p>
+      </div>
+      <div class="killer">
+        <h3>30 fps</h3>
+        <p>Reicht für Haltung und Treffpunkt, nie für Zeitmessungen. Der Bericht sagt es und misst den Rest.</p>
+      </div>
+      <div class="killer">
+        <h3>Aus der Hand geschwenkt</h3>
+        <p>Kameraschwenk und Spielerbewegung sind aus einem Bild nicht zu trennen.</p>
+      </div>
+    </div>
+  </section>
+
+  <div class="limit">
+    <p class="eyebrow">Die Grenze, die auch perfektes Material hat</p>
+    <p>
+      Die absoluten Zeitabstände der kinetischen Kette bleiben aus einer einzelnen Kamera
+      unauflösbar. Bei 240 fps und sechs Wiederholungen liegt die Unsicherheit des Mittelwerts bei
+      ±12 ms, davon 12 ms systematisch — die Referenzbänder der Literatur trennen Elite von
+      Sub-Elite bei 4 bis 9 ms. Was bleibt, ist der Vergleich des Spielers mit sich selbst über die
+      Zeit; dort kürzt sich der systematische Anteil heraus.
+    </p>
+  </div>
+
+  <footer>
+    <p>
+      Alle Schwellen stammen aus dem Code, nicht aus einer Empfehlung:
+      <code>MIN_TIMING_HZ = 60</code>, <code>MIN_RACKET_SPEED_HZ = 120</code>,
+      <code>MIN_QUALITY_FOR_VERDICT = 55</code>, <code>MIRROR_RESOLVED = 0.7</code>,
+      <code>MIN_KEYPOINT_SCORE = 0.15</code>. Ändert sich eine Schwelle, ändert sich das Verhalten der
+      App — und dieses Blatt ist dann falsch.
+    </p>
+  </footer>
+</div>
