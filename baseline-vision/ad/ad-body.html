@@ -1,0 +1,194 @@
+<style>
+  :root {
+    --ground: #0b0e10;
+    --surface: #141a1d;
+    --line: #232d32;
+    --ink: #eef3f4;
+    --ink-soft: #93a3aa;
+    --ink-faint: #617077;
+    --accent: #4dbdb4;
+    --alert: #e2766a;
+    --ball: #c3d635;
+    --display: Archivo, "Helvetica Neue", Arial, sans-serif;
+    --data: PlexMono, ui-monospace, monospace;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  html, body {
+    width: 1920px; height: 1080px;
+    background: var(--ground); color: var(--ink);
+    font-family: var(--display); overflow: hidden;
+  }
+
+  #stage { position: relative; width: 1920px; height: 1080px; }
+
+  canvas#skeleton { position: absolute; inset: 0; }
+
+  /* Fine instrument grid, barely there — the ground is a measuring surface. */
+  #grid { position: absolute; inset: 0; opacity: 0; }
+
+  .layer { position: absolute; inset: 0; opacity: 0; }
+
+  .eyebrow {
+    font-family: var(--data); font-size: 22px; font-weight: 500;
+    letter-spacing: 0.22em; text-transform: uppercase; color: var(--ink-faint);
+  }
+
+  .headline {
+    font-family: var(--display); font-weight: 700; letter-spacing: -0.03em;
+    line-height: 1.02; font-size: 96px;
+  }
+
+  .sub { font-size: 34px; color: var(--ink-soft); line-height: 1.35; font-weight: 600; letter-spacing: -0.01em; }
+
+  .num { font-family: var(--data); font-variant-numeric: tabular-nums; }
+
+  /* --- scene 2: the old verdict ---------------------------------- */
+  #verdict { left: 1080px; top: 300px; width: 700px; }
+  #verdict .score {
+    font-family: var(--display); font-weight: 700; font-size: 260px;
+    letter-spacing: -0.05em; color: var(--alert); line-height: 0.9;
+  }
+  #verdict .of { font-family: var(--data); font-size: 40px; color: var(--ink-faint); }
+
+  /* --- scene 3: the mechanism ------------------------------------ */
+  #mechanism { display: grid; grid-template-columns: 1fr 1fr; align-content: center;
+               gap: 0 90px; padding: 0 150px; }
+  .measure-card { border-left: 4px solid var(--line); padding: 8px 0 8px 34px; }
+  .measure-card .label { font-family: var(--data); font-size: 24px; color: var(--ink-faint); letter-spacing: 0.1em; text-transform: uppercase; }
+  .measure-card .value { font-family: var(--display); font-weight: 700; font-size: 150px; letter-spacing: -0.04em; line-height: 1.05; }
+  .measure-card .note { font-size: 28px; color: var(--ink-soft); margin-top: 10px; }
+  #mech-left { border-left-color: var(--alert); }
+  #mech-left .value { color: var(--alert); }
+  #mech-right { border-left-color: var(--ball); }
+  #mech-right .value { color: var(--ball); }
+
+  /* --- scene 4: the chain ---------------------------------------- */
+  #chain { display: flex; flex-direction: column; justify-content: center; padding: 0 150px; gap: 60px; }
+  #chain .rail { display: flex; gap: 10px; }
+  #chain .rail i {
+    display: block; height: 10px; flex: 1 1 0; background: var(--line);
+  }
+  #chain .names { display: flex; gap: 10px; font-family: var(--data); font-size: 17px; color: var(--ink-faint); }
+  #chain .names span { flex: 1 1 0; text-align: left; letter-spacing: 0.04em; }
+
+  /* --- scene 5: the measurement ---------------------------------- */
+  #result { display: flex; flex-direction: column; justify-content: center; padding: 0 150px; gap: 46px; }
+  #result .card { background: var(--surface); border: 1px solid var(--line); padding: 54px 62px; }
+  #result .row { display: flex; align-items: baseline; justify-content: space-between; }
+  #result .name { font-size: 40px; font-weight: 600; }
+  #result .val { font-family: var(--data); font-size: 62px; }
+  #bar { position: relative; height: 74px; margin-top: 36px; }
+  #bar .axis { position: absolute; left: 0; right: 0; top: 36px; height: 2px; background: var(--line); }
+  #bar .interval { position: absolute; top: 24px; height: 26px; background: rgba(77,189,180,0.35); border-left: 2px solid var(--accent); border-right: 2px solid var(--accent); }
+  #bar .point { position: absolute; top: 14px; width: 4px; height: 46px; background: var(--accent); }
+  #bar .truth { position: absolute; top: 6px; width: 3px; height: 62px; background: var(--ball); }
+  #bar .tick {
+    position: absolute; top: 46px; font-family: var(--data); font-size: 20px;
+    color: #4b585e; transform: translateX(-50%);
+  }
+  #bar .truthlabel { position: absolute; top: -30px; font-family: var(--data); font-size: 22px; color: var(--ball); transform: translateX(-50%); white-space: nowrap; }
+
+  /* --- scene 6: the refusal -------------------------------------- */
+  #refusal { display: flex; flex-direction: column; justify-content: center; padding: 0 150px; gap: 40px; }
+  #refusal .card { background: var(--surface); border: 1px solid var(--line); border-left: 5px solid var(--alert); padding: 50px 60px; }
+  #refusal .card h3 { font-size: 56px; font-weight: 700; letter-spacing: -0.025em; }
+  #refusal .card ul { list-style: none; margin-top: 26px; display: flex; flex-direction: column; gap: 12px; }
+  #refusal .card li { font-family: var(--data); font-size: 26px; color: var(--ink-soft); }
+  #refusal .card li::before { content: "— "; color: var(--ink-faint); }
+
+  /* --- scene 7: lockup ------------------------------------------- */
+  #lockup { display: flex; flex-direction: column; justify-content: center; align-items: flex-start; padding: 0 150px; gap: 34px; }
+  #lockup .wordmark { font-family: var(--display); font-weight: 700; font-size: 130px; letter-spacing: -0.045em; }
+  #lockup .wordmark span { color: var(--accent); }
+  #lockup .claim { font-size: 42px; color: var(--ink-soft); font-weight: 600; letter-spacing: -0.012em; max-width: 1300px; line-height: 1.3; }
+  #lockup .foot { font-family: var(--data); font-size: 26px; color: var(--ink-faint); letter-spacing: 0.05em; }
+
+  .rule { height: 2px; background: var(--accent); width: 0; }
+</style>
+
+<div id="stage">
+  <canvas id="skeleton" width="1920" height="1080"></canvas>
+  <canvas id="grid" width="1920" height="1080"></canvas>
+
+  <div class="layer" id="intro">
+    <div style="position:absolute; left:150px; bottom:150px;">
+      <p class="eyebrow" id="intro-eyebrow">Aufschlag · ATP-Niveau</p>
+      <div class="rule" id="intro-rule" style="margin:26px 0 30px;"></div>
+      <h1 class="headline" id="intro-headline" style="max-width:1100px;">Dieser Aufschlag<br />ist technisch<br />herausragend.</h1>
+    </div>
+  </div>
+
+  <div class="layer" id="verdict">
+    <p class="eyebrow">Das alte Werkzeug sagte</p>
+    <div class="score num" id="verdict-score">4,8</div>
+    <div class="of">von 10 Ähnlichkeitspunkten</div>
+    <p class="sub" style="margin-top:44px;">Bei perfekten Eingaben. Für jeden Aufschlag der Welt.</p>
+  </div>
+
+  <div class="layer" id="mechanism">
+    <div class="measure-card" id="mech-left">
+      <p class="label">Im Bild gemessen</p>
+      <div class="value num">21°</div>
+      <p class="note">Winkel in der Bildebene,<br />verglichen mit Laborwerten.</p>
+    </div>
+    <div class="measure-card" id="mech-right">
+      <p class="label">Tatsächlich</p>
+      <div class="value num">66°</div>
+      <p class="note">Knieflexion in drei Dimensionen.<br />Zwei verschiedene Größen.</p>
+    </div>
+    <p class="sub" id="mech-caption" style="grid-column:1/-1; margin-top:70px;">
+      Kein Formulierungsproblem. Ein Messproblem.
+    </p>
+  </div>
+
+  <div class="layer" id="chain">
+    <p class="eyebrow">Also neu gemessen — vierzehn Schichten, jede einzeln prüfbar</p>
+    <div class="rail" id="chain-rail"></div>
+    <div class="names" id="chain-names"></div>
+  </div>
+
+  <div class="layer" id="result">
+    <p class="eyebrow">Dieselbe Aufnahme, neu vermessen</p>
+    <div class="card">
+      <div class="row">
+        <span class="name">Maximale Knieflexion</span>
+        <span class="val num" id="result-value">65,1 ± 7,2°</span>
+      </div>
+      <div id="bar">
+        <div class="axis"></div>
+        <span class="tick" style="left:0">0°</span>
+        <span class="tick" style="left:50%">50°</span>
+        <span class="tick" style="left:100%">100°</span>
+        <div class="interval" id="bar-interval"></div>
+        <div class="point" id="bar-point"></div>
+        <div class="truth" id="bar-truth"></div>
+        <div class="truthlabel" id="bar-truthlabel">wahr: 66,0°</div>
+      </div>
+    </div>
+    <p class="sub">Ein Wert, ein Intervall, und die Wahrheit liegt darin.</p>
+  </div>
+
+  <div class="layer" id="refusal">
+    <p class="eyebrow">Und wenn die Aufnahme es nicht hergibt</p>
+    <div class="card">
+      <h3>Diese Aufnahme trägt keine Bewertung.</h3>
+      <ul>
+        <li>Bildfolge 18 Hz — zu grob für Zeitmessungen</li>
+        <li>Tiefenrichtung nicht gesichert — kein Winkel wird zitiert</li>
+        <li>0 von 14 Kenngrößen belastbar genug</li>
+      </ul>
+    </div>
+    <p class="sub">Sie sagt es. Statt eine Zahl zu erfinden.</p>
+  </div>
+
+  <div class="layer" id="lockup">
+    <div class="wordmark">Baseline<span>&nbsp;Vision</span></div>
+    <div class="rule" id="lockup-rule"></div>
+    <p class="claim" id="lockup-claim">
+      Lieber „Ich weiß es nicht sicher“<br />als „Der Aufschlag ist 63 von 100“.
+    </p>
+    <p class="foot" id="lockup-foot">Läuft im Browser · Das Video bleibt auf Ihrem Rechner</p>
+  </div>
+</div>
