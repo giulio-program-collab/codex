@@ -1,0 +1,57 @@
+name: pmtrade
+
+# `pmtrade/` is a self-contained Python subproject with its own toolchain, so
+# its checks run on their own path-filtered workflow rather than through
+# blocking-ci.yml. Reusable workflows cannot carry path filters, so adding it
+# there would run a Python lint/type/test job on every Rust pull request.
+
+on:
+  pull_request:
+    paths:
+      - "pmtrade/**"
+      - ".github/workflows/pmtrade.yml"
+  push:
+    branches: [main]
+    paths:
+      - "pmtrade/**"
+      - ".github/workflows/pmtrade.yml"
+
+permissions:
+  contents: read
+
+defaults:
+  run:
+    working-directory: pmtrade
+
+jobs:
+  checks:
+    name: Lint, types, and tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b # v8.1.0
+        with:
+          version: "0.11.3"
+
+      # `--frozen` installs exactly what uv.lock pins and fails rather than
+      # re-resolving, so CI cannot drift from the recorded environment.
+      - name: Install the locked environment
+        run: uv sync --frozen
+
+      - name: Check formatting (run `uv run ruff format .` to fix)
+        run: uv run ruff format --check .
+
+      - name: Lint
+        run: uv run ruff check .
+
+      - name: Type check
+        run: uv run mypy
+
+      - name: Test
+        run: uv run pytest

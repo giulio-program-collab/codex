@@ -1,0 +1,8 @@
+# Recorded venue data is large, irreplaceable, and never committed (BLUEPRINT §3).
+data/
+.venv/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+__pycache__/
+*.pyc
