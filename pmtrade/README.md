@@ -3,10 +3,9 @@
 Research system that answers one question: **does a measurable, repeatable edge
 exist over Kalshi's prices on economic contracts, after costs?**
 
-The design lives in [`BLUEPRINT.md`](BLUEPRINT.md) alongside this file. The
-non-negotiable rules live in `CLAUDE.md`, which is not checked in here because
-the host repository gitignores that filename. "No edge found" is a complete
-and successful outcome.
+The non-negotiable rules live in [`CLAUDE.md`](CLAUDE.md) and the design in
+[`BLUEPRINT.md`](BLUEPRINT.md). Where the two conflict, `CLAUDE.md` wins.
+"No edge found" is a complete and successful outcome.
 
 This project places no orders. Milestones M0–M10 use a dry-run broker only.
 

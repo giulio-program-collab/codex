@@ -6,3 +6,8 @@ data/
 .ruff_cache/
 __pycache__/
 *.pyc
+
+# The host repository's root .gitignore excludes CLAUDE.md everywhere, as a
+# stray agent-tool file. Here it is the project constitution that BLUEPRINT §3
+# requires at the project root, so it is re-included.
+!CLAUDE.md
