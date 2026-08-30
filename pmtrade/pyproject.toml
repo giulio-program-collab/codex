@@ -32,6 +32,10 @@ packages = ["pmtrade"]
 [tool.ruff]
 line-length = 88
 target-version = "py312"
+# Ruff formats Python blocks inside Markdown. BLUEPRINT.md is the build
+# specification reproduced verbatim, including code excerpts whose alignment
+# is part of the document; it is a source of truth, not a source file.
+extend-exclude = ["BLUEPRINT.md"]
 
 [tool.ruff.lint]
 select = [
