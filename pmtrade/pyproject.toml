@@ -19,6 +19,7 @@ dev = [
     "hypothesis>=6.122",
     "mypy>=1.14",
     "pytest>=8.3",
+    "pytest-cov>=6.0",
     "ruff>=0.8",
 ]
 
@@ -64,5 +65,15 @@ files = ["pmtrade", "tests"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-addopts = "-q --strict-markers --strict-config"
+# CLAUDE.md sets a >=80% coverage bar on new modules for every milestone.
+# Enforcing it in addopts makes the bar structural: any run that drops below
+# it fails, rather than relying on someone remembering to measure.
+addopts = """\
+    -q --strict-markers --strict-config \
+    --cov=pmtrade --cov-report=term-missing --cov-fail-under=80\
+"""
 xfail_strict = true
+
+[tool.coverage.report]
+exclude_also = ["if TYPE_CHECKING:", "\\.\\.\\."]
+show_missing = true

@@ -31,7 +31,7 @@ uv sync --frozen          # create .venv from uv.lock
 uv run ruff format --check .
 uv run ruff check .
 uv run mypy
-uv run pytest
+uv run pytest             # fails below 80% coverage
 ```
 
 `data/` is gitignored, append-only, and never mutated in place.
