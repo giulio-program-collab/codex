@@ -131,6 +131,15 @@
   #rep-summary { font-size: 0.85rem; color: var(--soft); margin-bottom: 0.9rem; }
 
   .actions { display: flex; gap: 0.6rem; flex-wrap: wrap; margin-top: 1.4rem; }
+  .blocked { border: 1px solid var(--warn); border-radius: 14px; padding: 2rem clamp(1.2rem, 4vw, 2.5rem); }
+  .blocked h1 { font-size: clamp(1.3rem, 3.5vw, 1.9rem); font-weight: 700; letter-spacing: -0.02em; }
+  .blocked p { color: var(--soft); margin-top: 0.9rem; max-width: 62ch; font-size: 0.92rem; }
+  .blocked b { color: var(--ink); }
+  .blocked code { font-family: var(--mono); font-size: 0.88em; color: var(--accent); }
+  .blocked pre { font-family: var(--mono); font-size: 0.86rem; background: var(--bg);
+                 border: 1px solid var(--line); border-radius: 8px; padding: 0.7rem 1rem;
+                 margin-top: 0.7rem; overflow-x: auto; color: var(--ink); }
+
   #error { max-width: 60ch; margin: 4rem auto; text-align: center; }
   #error h2 { font-size: 1.3rem; margin-bottom: 0.7rem; }
   #error-text { color: var(--soft); margin-bottom: 1.5rem; }
@@ -260,6 +269,42 @@
   das weiß der Mensch vor dem Bildschirm und nicht das Programm.
 </footer>
 
+<!--
+  Ein gewöhnliches Skript, kein Modul — es muss auch dann laufen, wenn das
+  Modul daneben es nicht tut.
+
+  Diese Datei ist die Entwicklerfassung und braucht einen Server: Browser laden
+  ES-Module nicht aus `file://`. Wer sie doppelklickt, bekam bisher eine Seite,
+  auf der die Schaltflächen nichts tun und in der Konsole ein CORS-Fehler steht,
+  den niemand sucht, der einfach ein Video ansehen wollte. Jetzt sagt sie es.
+-->
+<script>
+  // Der Bauvorgang übernimmt diesen Block in motus.html — und die wird
+  // ausdrücklich aus `file://` geöffnet. Der Hinweis darf dort also nicht
+  // erscheinen. Entschieden wird deshalb nicht am Protokoll allein, sondern
+  // daran, ob Modell und Laufzeit schon in der Seite stecken.
+  //
+  // Und geprüft wird das *im* DOMContentLoaded, nicht davor: Beim Ausführen
+  // dieses Skripts ist der Rest der Seite noch nicht geparst, und in motus.html
+  // steht der eingebettete Block weiter unten. Vorher gefragt, lautet die
+  // Antwort in beiden Fassungen „nicht da".
+  document.addEventListener("DOMContentLoaded", () => {
+    const eingebettet = document.getElementById("motus-assets") !== null;
+    if (location.protocol !== "file:" || eingebettet) return;
+    document.getElementById("drop").outerHTML = `
+        <div class="blocked">
+          <h1>Diese Datei braucht einen Server</h1>
+          <p><code>index.html</code> ist die Entwicklerfassung. Browser laden aus einem
+             geöffneten Ordner keine Programm-Module — das ist eine Sicherheitsregel des
+             Browsers, kein Fehler von MOTUS.</p>
+          <p><b>Zum Doppelklicken gibt es <code>motus.html</code></b> — eine einzige Datei,
+             in der alles steckt. Falls sie fehlt, einmal bauen:</p>
+          <pre>node build.mjs</pre>
+          <p>Oder die Entwicklerfassung mit Server starten:</p>
+          <pre>npm run serve   →   http://localhost:8100/</pre>
+        </div>`;
+  });
+</script>
 <script type="module">
   import { start } from "./src/app.js";
   // Gegen die Adresse der *Seite* aufgelöst, nicht gegen die des Moduls, das

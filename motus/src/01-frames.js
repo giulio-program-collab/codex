@@ -14,8 +14,14 @@
  *
  * MOTUS spult stattdessen: Es setzt `currentTime` auf einen Zeitpunkt, wartet,
  * bis der Browser meldet, dass er dort ist, und liest dann das Bild. Das ist
- * langsamer, aber es überspringt nichts, und zweimal dieselbe Datei ergibt
- * zweimal dasselbe Ergebnis.
+ * langsamer, dafür wird nichts übersprungen — und welche Zeitpunkte ausgewertet
+ * werden, hängt nicht mehr davon ab, wie ausgelastet der Rechner gerade war.
+ *
+ * Vollständig deterministisch ist die Kette damit trotzdem nicht: Das
+ * Pose-Modell rechnet auf der Grafikkarte, und dort sind Ergebnisse zwischen
+ * zwei Läufen um Kleinigkeiten verschieden. Auf Winkel und Spannweiten wirkt
+ * sich das kaum aus; eine Wiederholung, die knapp an der Erkennungsschwelle
+ * liegt, kann zwischen zwei Läufen aber die Seite wechseln.
  *
  * Vorher wird gemessen, wie schnell das Video wirklich ist. „30 fps" in den
  * Metadaten heißt nicht, dass 30 verschiedene Bilder pro Sekunde drin sind:

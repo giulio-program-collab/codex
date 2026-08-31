@@ -13,15 +13,25 @@ Winkel und Wiederholungen, und die gibt es überall.
 
 ## Ausprobieren
 
+### Ohne alles: `motus.html`
+
+**[`motus.html`](motus.html) herunterladen und doppelklicken.** Eine einzige
+Datei, 10 MB, in der Programm, Pose-Modell und WebAssembly stecken. Kein Server,
+kein Internet, keine Installation, kein Node.
+
+> Auf GitHub nicht auf die Datei klicken, sondern auf **Download raw file**
+> (der Pfeil rechts über der Ansicht) — sonst zeigt GitHub nur den Quelltext.
+
+### Mit Server: `index.html`
+
+`index.html` ist die Entwicklerfassung. Sie **lässt sich nicht doppelklicken**:
+Browser laden ES-Module nicht aus einem geöffneten Ordner. Das ist eine
+Sicherheitsregel des Browsers, kein Fehler — und die Seite sagt es inzwischen
+auch, statt einfach nichts zu tun.
+
 ```bash
 npm run serve      # → http://localhost:8100/
-```
-
-Oder ohne alles: `node build.mjs` baut `motus.html`, eine einzige Datei von
-10 MB, in der Modell, Programm und WebAssembly stecken. Die lässt sich
-doppelklicken — kein Server, kein Internet, keine Installation.
-
-```bash
+node build.mjs     # baut motus.html neu, nach Änderungen an src/
 npm test           # 27 Tests für die Rechenschritte
 ```
 
@@ -43,8 +53,16 @@ Löcher an genau den Stellen, an denen am meisten passiert ist, weil dort am
 meisten zu rechnen war. Beim zweiten Durchlauf sind es andere Löcher.
 
 MOTUS spult stattdessen: Zeitpunkt setzen, warten, bis der Browser dort ist,
-Bild lesen. Langsamer, aber es überspringt nichts, und zweimal dieselbe Datei
-ergibt zweimal dasselbe Ergebnis.
+Bild lesen. Langsamer, dafür wird nichts übersprungen, und welche Zeitpunkte
+ausgewertet werden, hängt nicht mehr davon ab, wie ausgelastet der Rechner
+gerade war.
+
+Vollständig deterministisch ist die Kette damit nicht. Das Pose-Modell rechnet
+auf der Grafikkarte, und dort unterscheiden sich zwei Läufe um Kleinigkeiten.
+Auf Winkel und Spannweiten wirkt sich das kaum aus — eine Wiederholung, die
+knapp an der Erkennungsschwelle liegt, kann zwischen zwei Läufen aber die Seite
+wechseln. An Ihrem Tennisvideo, in dem nur zwei bis drei Schulterschwünge
+überhaupt in Frage kommen, ist mir das mehrfach passiert.
 
 Vorher wird gemessen, wie schnell das Video **wirklich** ist. „60 fps" in den
 Metadaten heißt nicht, dass 60 verschiedene Bilder pro Sekunde drin sind:
