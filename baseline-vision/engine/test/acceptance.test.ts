@@ -407,3 +407,70 @@ test("T7b: a camera that cannot see an axis reports that axis as unmeasurable", 
     );
   }
 });
+
+/* ------------------------------------------------------------------ */
+/* Test 8 — the tool must be usable                                    */
+/* ------------------------------------------------------------------ */
+
+/**
+ * The brief asks the system to refuse when it cannot support a claim. It does
+ * not ask it to refuse *service*, and for a long time that is what happened:
+ * an ordinary phone recording produced fifteen good measurements and reported
+ * "keine zuverlässige Bewertung möglich", which reads as "your video failed".
+ * The composite score is genuinely hard to earn — it needs three reference
+ * comparisons, and a single serve rarely supplies three. That is a reason to
+ * withhold the score. It is not a reason to withhold the measurements.
+ */
+test("T8: a readable recording without a composite score still delivers its measurements", () => {
+  const scenario = buildScenario("t8", "Handy, seitlich, 120 fps", {
+    preset: "elite",
+    level: "elite",
+    fps: 120,
+    render: PHONE_CAPTURE,
+  });
+  const { report } = analyse(scenario.request, { now: NOW });
+
+  assert.notEqual(
+    report.verdict.kind,
+    "no_reliable_assessment",
+    "a clip this readable must not be refused outright",
+  );
+  const quotable = report.metrics.filter((m) => !m.rejected && m.value !== null && m.confidence >= 0.35);
+  assert.ok(
+    quotable.length >= 8,
+    `only ${quotable.length} of ${report.metrics.length} metrics were quotable on a good phone clip`,
+  );
+  if (report.verdict.kind === "partial") {
+    assert.ok(report.verdict.reasons.length > 0, "a withheld score must say why it was withheld");
+    assert.equal(report.verdict.measured.usable, quotable.length);
+    // Every interval must still be honest about the depth it rests on.
+    for (const m of quotable) {
+      assert.ok(m.interval95 !== null || m.sd === null, `${m.id} is quoted without an interval`);
+    }
+  }
+});
+
+test("T8b: an analysis with nothing to criticise says so instead of falling silent", () => {
+  const scenario = buildScenario("t8b", "Weltklasse, beste Aufnahme", {
+    preset: "elite",
+    level: "elite",
+    rig: "elevatedSide",
+    fps: 240,
+    knownFieldOfView: true,
+    learnedDepth: true,
+  });
+  const { report } = analyse(scenario.request, { now: NOW, depthPrior: scenario.depthPrior });
+  const confirmations = report.findings.filter((f) => f.source === "confirmation");
+  assert.ok(
+    confirmations.length > 0,
+    "a clean elite serve produced no findings at all — the coach is shown an empty panel",
+  );
+  // A confirmation is a positive result, not a hedged fault: it may never carry
+  // a training recommendation.
+  for (const c of confirmations) {
+    assert.ok(
+      /[Kk]ein Handlungsbedarf/.test(c.recommendation),
+      `confirmation ${c.id} recommends work: ${c.recommendation}`,
+    );
+  }
+});

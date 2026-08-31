@@ -242,18 +242,26 @@ export function analyse(request: AnalysisRequest, options: PipelineOptions = {})
     quality,
     issues,
     meanFeatureConfidence(features.features),
+    features.features,
   );
   layers.push({
     id: "L13",
     name: "Plausibilitätsprüfung & Interpretation",
-    status: verdict.kind === "assessment" ? "ok" : "degraded",
-    quality: verdict.kind === "assessment" ? (verdict.confidence ?? 0) : 0,
+    // A partial result is a working layer, not a degraded one: it measured what
+    // was there and declined only the composite.
+    status: verdict.kind === "no_reliable_assessment" ? "degraded" : "ok",
+    quality:
+      verdict.kind === "assessment"
+        ? (verdict.confidence ?? 0)
+        : verdict.measured.total > 0
+          ? verdict.measured.usable / verdict.measured.total
+          : 0,
     notes: issues.filter((i) => i.severity === "blocking").map((i) => i.statement),
     diagnostics: {
       befunde: findings.length,
       blockierendeBefunde: issues.filter((i) => i.severity === "blocking").length,
       warnungen: issues.filter((i) => i.severity === "warning").length,
-      bewertung: verdict.kind === "assessment" ? (verdict.score as number) : "verworfen",
+      bewertung: verdict.kind === "assessment" ? (verdict.score as number) : verdict.kind,
     },
   });
 

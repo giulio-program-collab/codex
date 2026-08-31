@@ -4,7 +4,7 @@
       1182,
       108,
       2051,
-      833
+      952
     ],
     "metrics": [
       17,
@@ -16,7 +16,7 @@
   "facts": {
     "metricName": "Maximale Knieflexion (vorderes Bein)",
     "metricValue": "65.1 ± 7.2 °",
-    "usable": "14 von 19",
+    "usable": "16 von 16",
     "quality": "89"
   }
 }

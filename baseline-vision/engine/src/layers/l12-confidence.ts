@@ -22,6 +22,14 @@ export interface QualityComponent {
   /** What the coach can do about it, when there is something. */
   remedy: string | null;
   /**
+   * Share of the analysis quality this component carries.
+   *
+   * Kept on the component so a reader — and the advice that picks the single
+   * most effective next step — can tell a weak score on something that barely
+   * matters from a weak score on something that decides the analysis.
+   */
+  weight?: number;
+  /**
    * False when the input never contained what this component measures — a clip
    * with no racket track, say. Such a component is left out of the score rather
    * than counted as zero: the recording is not worse for lacking something
@@ -123,6 +131,7 @@ export function assessQuality(input: ConfidenceInput): QualityReport {
   };
   for (const c of components) {
     c.applicable = byId.get(layerOf[c.id] ?? "")?.status !== "skipped";
+    c.weight = weights[c.id] ?? 0;
   }
   const applicable = components.filter((c) => c.applicable !== false);
   const weightSum = applicable.reduce((s, c) => s + (weights[c.id] ?? 0), 0);
@@ -145,22 +154,41 @@ export function assessQuality(input: ConfidenceInput): QualityReport {
     if (layer.status === "failed") blockers.push(`${layer.name}: fehlgeschlagen.`);
   }
 
-  const usable = input.features.filter((f) => f.measure.value !== null && !f.rejected && f.measure.confidence >= 0.35);
-  if (usable.length < 3) {
-    blockers.push(
-      `Nur ${usable.length} belastbare Kenngrößen — zu wenig für eine Gesamteinschätzung ` +
-        "(mindestens 3 erforderlich).",
-    );
-  }
+  // One cause, one sentence.
+  //
+  // Three separate rules used to fire on the same underlying fact — a video the
+  // pipeline could not read — and the reader got three notices for it: too few
+  // usable features, too many rejected ones, quality below a threshold whose
+  // number means nothing to anyone outside this file. A person reading that
+  // cannot tell whether they have one problem or three, and none of the three
+  // says what to do. So the root causes are checked in order of severity and
+  // only the first one that applies is reported, in the second person, with the
+  // remedy attached.
+  const usable = input.features.filter(
+    (f) => f.measure.value !== null && !f.rejected && f.measure.confidence >= 0.35,
+  );
   const rejected = input.features.filter((f) => f.rejected);
-  if (rejected.length > input.features.length * 0.3) {
+  const weakest = components
+    .filter((c) => c.applicable !== false)
+    .reduce((a, b) => (b.score < a.score ? b : a), components[0]);
+
+  if (rejected.length > input.features.length * 0.4) {
     blockers.push(
-      `${rejected.length} von ${input.features.length} Kenngrößen lagen außerhalb des physiologisch ` +
-        "Möglichen — die Pipeline arbeitet auf diesem Video nicht zuverlässig.",
+      `${rejected.length} von ${input.features.length} Werten lagen außerhalb dessen, was ein Körper ` +
+        "kann. Das spricht dafür, dass im Video zwischendurch eine andere Person verfolgt wurde " +
+        "oder links und rechts vertauscht sind — nicht dafür, dass die Bewegung ungewöhnlich ist.",
     );
-  }
-  if (overall < MIN_QUALITY_FOR_VERDICT) {
-    blockers.push(`Analysequalität ${overall}/100 liegt unter der Schwelle von ${MIN_QUALITY_FOR_VERDICT}.`);
+  } else if (usable.length === 0) {
+    blockers.push(
+      "Aus dieser Aufnahme ließ sich keine einzige Kenngröße sicher genug bestimmen, um sie zu nennen. " +
+        (weakest?.remedy ?? "Eine Aufnahme mit besserer Perspektive oder höherer Bildrate hilft."),
+    );
+  } else if (overall < MIN_QUALITY_FOR_VERDICT) {
+    blockers.push(
+      `Die Aufnahme trägt einzelne Messwerte, aber nicht genug für ein Gesamturteil ` +
+        `(Analysequalität ${overall} von 100, nötig sind ${MIN_QUALITY_FOR_VERDICT}). ` +
+        `Am meisten bringt: ${lowerFirst(weakest?.remedy ?? "eine Aufnahme mit höherer Bildrate.")}`,
+    );
   }
 
   return {
@@ -175,4 +203,11 @@ export function assessQuality(input: ConfidenceInput): QualityReport {
 export function meanFeatureConfidence(features: Feature[]): number {
   const usable = features.filter((f) => f.measure.value !== null && !f.rejected);
   return usable.length ? clamp(mean(usable.map((f) => f.measure.confidence)) ?? 0, 0, 1) : 0;
+}
+
+/** "Kamera weiter weg …" → "kamera weiter weg …", for use mid-sentence. */
+function lowerFirst(text: string): string {
+  return text.length > 1 && text[1] === text[1].toLowerCase()
+    ? text[0].toLowerCase() + text.slice(1)
+    : text;
 }

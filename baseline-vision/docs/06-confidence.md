@@ -84,8 +84,8 @@ sd          = Streuung eines Wertes, den wir zu messen glauben
 confidence  = Wahrscheinlichkeit, dass wir überhaupt das Richtige gemessen haben
 ```
 
-Die Confidence entsteht multiplikativ aus benannten Vertrauensfaktoren — ein
-schlechter Faktor genügt, um eine starke Aussage zu unterdrücken:
+Die Confidence entsteht aus benannten Vertrauensfaktoren — ein schlechter Faktor
+genügt, um eine starke Aussage zu unterdrücken:
 
 - Gelenkabdeckung der beteiligten Gelenke nach der Bereinigung
 - Sicherheit der Phasenerkennung
@@ -95,6 +95,43 @@ schlechter Faktor genügt, um eine starke Aussage zu unterdrücken:
 - Sicherheit der Zielrichtung (für richtungsbezogene Größen)
 - Güte des schwächsten beteiligten Layers
 - Anteil der Monte-Carlo-Replikate, in denen die Größe überhaupt berechenbar war
+
+### Wie die Faktoren verrechnet werden
+
+Sie werden **nicht multipliziert.** Das war der ursprüngliche Entwurf und er war
+falsch — auf eine Art, die lange niemandem auffiel, weil das Ergebnis immer
+plausibel aussah.
+
+Ein Produkt ist die richtige Form für unabhängige Überlebenswahrscheinlichkeiten:
+die Chance, dass keiner von mehreren getrennten Fehlern eingetreten ist. Diese
+Faktoren sind das nicht. Sie sind abgestufte Güten *einer* Messung. Multipliziert
+man abgestufte Güten, fällt das Ergebnis geometrisch mit der **Anzahl** der
+Güten, die jemand zu prüfen für nötig hielt. Vier respektable Faktoren
+
+```
+Gelenkabdeckung 1,00 · Ladephase 0,90 · Rekonstruktion 0,69 · Tiefenrichtung 0,50
+```
+
+ergaben 0,31 — unter jeder Schwelle im System. Eine Pipeline, die sechs Aspekte
+ihrer eigenen Arbeit prüft, traute sich damit weniger als eine, die drei prüft
+und wegsieht, beim selben Video. Genauer hinsehen darf die Arbeit nicht
+schlechter machen.
+
+Stattdessen: das **geometrische Mittel**, zur Hälfte zum schlechtesten Faktor
+gezogen.
+
+```
+trust = min(t)^0,5 · geomean(t)^0,5
+```
+
+Vier Faktoren von je 0,8 ergeben 0,8, gleich wie lang die Liste ist. Ein Faktor
+nahe null zieht das Ergebnis weiterhin nach null — die Schutzwirkung bleibt. Das
+obige Beispiel ergibt jetzt 0,61: eine Messung, die man mit Vorbehalt nennen
+darf, statt einer, die man wegwirft.
+
+Die **Intervalle ändert das nicht.** Die Streuung einer Messung ist das
+Monte-Carlo-Ergebnis und bleibt unberührt; verändert wurde nur das Tor, das
+entscheidet, ob die Zahl ausgesprochen werden darf.
 
 ## Die Schwellen
 

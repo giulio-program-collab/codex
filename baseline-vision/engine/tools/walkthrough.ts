@@ -226,7 +226,7 @@ for (const i of report.issues) {
 console.log("");
 kv("Urteil", report.verdict.kind === "assessment"
   ? `${report.verdict.score}/100 · Sicherheit ${pct(report.verdict.confidence ?? 0)}`
-  : "keine zuverlässige Bewertung");
+  : report.verdict.headline);
 for (const c of report.verdict.components ?? []) {
   kv("  " + c.label, `${c.score}/100 · Gewicht ${pct(c.weight)} · aus ${c.basedOn.join(", ")}`);
 }

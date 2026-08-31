@@ -342,7 +342,7 @@ for (const grade of GRADES) {
   console.log(
     pad(grade.label, 34) +
       padL(report.quality.overall + "/100", 10) +
-      padL(report.verdict.kind === "assessment" ? "Bewertung" : "keine Bewertung", 20) +
+      padL(report.verdict.kind === "assessment" ? "Bewertung" : report.verdict.kind === "partial" ? "Teilbefund" : "nichts messbar", 20) +
       padL(quotable + " von " + (report.metrics.length + report.notMeasurable.length), 12) +
       padL(f(legacy, 1) + "/10", 10),
   );

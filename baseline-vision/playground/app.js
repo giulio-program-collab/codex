@@ -524,22 +524,41 @@
   }
 
   function renderVerdict(report) {
-    // The headline says what the system is willing to claim about this clip.
-    // The engine's own sentence follows underneath, unedited.
-    const quotable = report.metrics.filter((m) => !m.rejected && m.confidence >= 0.6).length;
-    $("verdict-statement").textContent =
-      report.verdict.kind === "assessment"
-        ? "Diese Aufnahme trägt eine Bewertung."
-        : "Diese Aufnahme trägt keine Bewertung.";
-    $("verdict-explain").textContent =
-      quotable +
-      " von " +
-      (report.metrics.length + report.notMeasurable.length) +
-      " Kenngrößen sind belastbar genug, um sie zu zitieren. " +
-      report.verdict.statement;
+    // The headline is the engine's, in the engine's words. It used to be
+    // composed here from the verdict *kind*, which meant every clip without an
+    // overall grade was announced as "trägt keine Bewertung" — including the
+    // ordinary case of fifteen good measurements and no composite. The engine
+    // now distinguishes those, and the interface says what it says.
+    const verdict = report.verdict;
+    $("verdict-statement").textContent = verdict.headline;
+    $("verdict-explain").textContent = verdict.statement;
+
     const reasons = $("verdict-reasons");
     clear(reasons);
-    report.verdict.reasons.forEach((reason) => reasons.appendChild(el("li", null, reason)));
+    // On a partial result the reasons are background, not an indictment: they
+    // go behind a disclosure so the measurements are what the eye lands on.
+    if (verdict.kind === "partial" && verdict.reasons.length) {
+      const item = el("li", "bare");
+      const details = document.createElement("details");
+      details.className = "whynot";
+      const summary = document.createElement("summary");
+      summary.textContent = "Warum keine Gesamtnote?";
+      details.appendChild(summary);
+      verdict.reasons.forEach((reason) => details.appendChild(el("p", null, reason)));
+      item.appendChild(details);
+      reasons.appendChild(item);
+    } else {
+      verdict.reasons.forEach((reason) => reasons.appendChild(el("li", null, reason)));
+    }
+
+    if (verdict.nextStep) {
+      const item = el("li", "bare");
+      const step = el("p", "nextstep");
+      step.appendChild(el("b", null, "Nächstes Mal: "));
+      step.appendChild(document.createTextNode(verdict.nextStep));
+      item.appendChild(step);
+      reasons.appendChild(item);
+    }
 
     const scoreHost = $("verdict-score");
     clear(scoreHost);
@@ -568,7 +587,11 @@
     }
 
     $("verdict-aside").textContent =
-      report.verdict.kind === "assessment" ? "Bewertung möglich" : "keine belastbare Bewertung";
+      verdict.kind === "assessment"
+        ? "Bewertung möglich"
+        : verdict.kind === "partial"
+          ? verdict.measured.usable + " von " + verdict.measured.total + " Kenngrößen belastbar"
+          : "nichts messbar";
   }
 
   function renderQuality(quality) {
@@ -606,9 +629,16 @@
       });
       blockers.appendChild(card);
     } else {
-      const worst = quality.components.slice().sort((a, b) => a.score - b.score)[0];
-      if (worst && worst.remedy && worst.score < 80) {
-        const hint = el("p", "prose", "Schwächster Anteil: " + worst.label + ". " + worst.remedy);
+      // Naming the weakest part, not prescribing a fix for it. The advice on
+      // this screen lives in one place — "Nächstes Mal" under the verdict —
+      // and it ranks by how much quality a change would actually recover,
+      // which is rarely the same component as the lowest bar.
+      const worst = quality.components
+        .filter((c) => c.applicable !== false)
+        .slice()
+        .sort((a, b) => a.score - b.score)[0];
+      if (worst && worst.score < 80) {
+        const hint = el("p", "prose", "Schwächster Anteil: " + worst.label + " (" + worst.score + ").");
         hint.style.fontSize = "0.8rem";
         blockers.appendChild(hint);
       }
@@ -1138,16 +1168,44 @@
     const host = $("findings");
     clear(host);
     if (!report.findings.length) {
-      host.appendChild(el("p", "empty", "Keine Beobachtung ist belastbar genug, um daraus einen Hinweis abzuleiten."));
+      // Two very different silences used to share one sentence. "Nothing was
+      // measurable" is a problem with the recording; "nothing deviated" is an
+      // answer to the question that was asked. Saying the first when the second
+      // is true tells a coach their video failed when in fact their player is
+      // fine.
+      const measurable = report.metrics.some((m) => !m.rejected && m.value !== null);
+      host.appendChild(
+        el(
+          "p",
+          "empty",
+          measurable
+            ? "Kein Hinweis: Auf den messbaren Größen weicht nichts so weit ab, dass ein " +
+              "biomechanischer Wirkmechanismus dahinterstünde. Die Werte stehen unten."
+            : "Aus dieser Aufnahme ließ sich nichts messen, woraus ein Hinweis folgen könnte.",
+        ),
+      );
       return;
+    }
+    const faults = report.findings.filter((f) => f.source !== "confirmation");
+    const confirmations = report.findings.filter((f) => f.source === "confirmation");
+    if (faults.length === 0 && confirmations.length) {
+      host.appendChild(
+        el(
+          "p",
+          "empty",
+          "Nichts zu beanstanden auf den Größen, die diese Aufnahme hergibt. Was geprüft und " +
+            "in Ordnung befunden wurde, steht darunter.",
+        ),
+      );
     }
     report.findings.forEach((finding) => {
       const card = el("div", "card");
-      card.dataset.tone = toneForConfidence(finding.confidence);
-      const head = el("h3", null, finding.observation);
+      const ok = finding.source === "confirmation";
+      card.dataset.tone = ok ? "good" : toneForConfidence(finding.confidence);
+      const head = el("h3", null, (ok ? "\u2713 " : "") + finding.observation);
       card.appendChild(head);
-      const chip = el("span", "chip", finding.confidenceLabel);
-      chip.dataset.tone = toneForConfidence(finding.confidence);
+      const chip = el("span", "chip", ok ? "geprüft · " + finding.confidenceLabel : finding.confidenceLabel);
+      chip.dataset.tone = ok ? "good" : toneForConfidence(finding.confidence);
       card.appendChild(chip);
       const dl = document.createElement("dl");
       [
@@ -1529,6 +1587,8 @@
     },
     fail,
     setBusy,
+    /** The report currently on screen, for capture tooling and debugging. */
+    currentReport: () => (state.result ? state.result.report : null),
   });
 
   buildControls();

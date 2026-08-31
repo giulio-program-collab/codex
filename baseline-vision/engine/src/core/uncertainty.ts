@@ -236,10 +236,11 @@ export interface MeasureSpec {
   observability: Observability;
   provenance: string[];
   /**
-   * Multiplicative trust factors in [0, 1] that gate the measure independently
-   * of its spread — joint detection scores, phase-detection certainty, the
-   * fraction of the relevant window that was actually tracked. They are
-   * multiplied, so a single bad factor is enough to suppress a strong claim.
+   * Trust factors in [0, 1] that gate the measure independently of its spread —
+   * joint detection scores, phase-detection certainty, the fraction of the
+   * relevant window that was actually tracked. Combined by `combineTrust`, so a
+   * single collapsed factor still suppresses a strong claim while a list of
+   * merely good ones does not.
    */
   trust: Array<{ label: string; value: number }>;
   notes?: string[];
@@ -256,9 +257,58 @@ export interface MeasureSpec {
   sdFloor?: number;
 }
 
+/**
+ * Weight of the worst trust factor when the factors are combined.
+ *
+ * At 0.5 the combined trust is the geometric mean of the factors and their
+ * minimum, in equal measure.
+ */
+export const WORST_TRUST_WEIGHT = 0.5;
+
+/**
+ * Combines the trust factors of a measurement into one number in [0, 1].
+ *
+ * The factors used to be multiplied, and that was wrong in a way that took a
+ * long time to see. Multiplication is the right form for independent
+ * probabilities of survival — the chance that none of several separate faults
+ * occurred. These factors are not that. They are graded qualities of one
+ * measurement: how well the joints were seen, how sure the phase boundary is,
+ * how good the reconstruction is, whether the depth direction is resolved.
+ * Multiplying graded qualities makes the result fall off geometrically with the
+ * *number* of qualities anyone thought to check, so a pipeline that examines
+ * six aspects of its own work reports less confidence than one that examines
+ * three and looks away — with the same underlying video. In this pipeline four
+ * respectable factors (1.00, 0.90, 0.69, 0.50) produced 0.31, below every
+ * threshold downstream, and nothing was ever quotable.
+ *
+ * The geometric mean removes that count dependence: all-0.8 gives 0.8, whatever
+ * the length of the list. On its own it is too forgiving, because one collapsed
+ * factor can be averaged away by good company — and a measurement whose depth
+ * direction is unknown is not saved by clean joint detection. So the mean is
+ * pulled halfway toward the worst factor. A single factor near zero still
+ * drives the result to zero; several good ones now compound to a good one.
+ *
+ * This changes no interval. The spread of a measurement is the Monte-Carlo
+ * result and is untouched; what changes is only the gate that decides whether
+ * the number may be spoken aloud.
+ */
+export function combineTrust(factors: Array<{ value: number }>): number {
+  if (factors.length === 0) return 1;
+  const values = factors.map((f) => clamp(f.value, 0, 1));
+  if (values.some((v) => v <= 0)) return 0;
+  const logMean = values.reduce((s, v) => s + Math.log(v), 0) / values.length;
+  const geometric = Math.exp(logMean);
+  const worst = Math.min(...values);
+  return clamp(
+    Math.pow(worst, WORST_TRUST_WEIGHT) * Math.pow(geometric, 1 - WORST_TRUST_WEIGHT),
+    0,
+    1,
+  );
+}
+
 export function measureFrom(mc: McResult, spec: MeasureSpec): Measure {
   const notes = [...(spec.notes ?? [])];
-  const trust = spec.trust.reduce((acc, t) => acc * clamp(t.value, 0, 1), 1);
+  const trust = combineTrust(spec.trust);
 
   if (mc.value === null) {
     return {

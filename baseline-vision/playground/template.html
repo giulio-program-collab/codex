@@ -1446,6 +1446,63 @@
     font-style: italic;
   }
 
+  /* Why there is no overall grade: available, but not in the way. A partial
+     result is the ordinary outcome for a single serve filmed on a phone, and
+     printing its causes at full volume made every such analysis read as a
+     failure. */
+  details.whynot {
+    margin-top: 0.7rem;
+    border-left: 2px solid var(--line);
+    padding-left: 0.9rem;
+  }
+
+  details.whynot > summary {
+    cursor: pointer;
+    font-size: 0.82rem;
+    color: var(--ink-soft);
+    list-style: none;
+  }
+
+  details.whynot > summary::before {
+    content: "▸ ";
+    color: var(--ink-faint);
+  }
+
+  details[open].whynot > summary::before {
+    content: "▾ ";
+  }
+
+  details.whynot > summary::-webkit-details-marker {
+    display: none;
+  }
+
+  details.whynot p {
+    font-size: 0.82rem;
+    color: var(--ink-soft);
+    margin-top: 0.5rem;
+    max-width: 72ch;
+  }
+
+  p.nextstep {
+    margin-top: 0.9rem;
+    font-size: 0.86rem;
+    color: var(--ink);
+    background: color-mix(in srgb, var(--accent) 10%, transparent);
+    border-left: 3px solid var(--accent);
+    padding: 0.6rem 0.9rem;
+    max-width: 72ch;
+  }
+
+  p.nextstep b {
+    color: var(--accent);
+  }
+
+  /* A list item that carries a block rather than a sentence. */
+  .verdict .reasons li.bare::before {
+    content: none;
+    margin-right: 0;
+  }
+
   footer.colophon {
     padding: 1.5rem clamp(1rem, 3vw, 2.25rem) 3rem;
     border-top: 1px solid var(--line);

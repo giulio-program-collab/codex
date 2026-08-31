@@ -14,6 +14,7 @@ import {
 import { backproject, focalFromHfov, inPlaneFraction, lookAt, project, unproject } from "../src/core/camera.ts";
 import { scatterMatrix, symmetricEigen3 } from "../src/core/linalg.ts";
 import {
+  combineTrust,
   interval,
   measureFrom,
   posteriorSanity,
@@ -153,4 +154,31 @@ test("posterior out-of-plane estimate shrinks toward zero when the projection is
   const foreshortened = posteriorSanity(L, 0.6 * L, 0.004);
   const expected = L * Math.sqrt(1 - 0.36);
   assert.ok(Math.abs(foreshortened.mean - expected) < 0.05 * L);
+});
+
+/**
+ * The trust factors of a measurement are graded qualities of one observation,
+ * not independent probabilities of survival. Multiplying them made the reported
+ * confidence fall off with the number of qualities the pipeline bothered to
+ * check, which is the wrong direction: examining your own work more carefully
+ * cannot make the work worse.
+ */
+test("combined trust does not decay with the number of factors checked", () => {
+  const four = combineTrust([{ value: 0.8 }, { value: 0.8 }, { value: 0.8 }, { value: 0.8 }]);
+  const eight = combineTrust(Array.from({ length: 8 }, () => ({ value: 0.8 })));
+  assert.ok(Math.abs(four - 0.8) < 1e-9, `four good factors gave ${four}`);
+  assert.ok(Math.abs(eight - 0.8) < 1e-9, `eight of the same factors gave ${eight}`);
+});
+
+test("a single collapsed trust factor still suppresses the measurement", () => {
+  const withCollapse = combineTrust([{ value: 1 }, { value: 0.95 }, { value: 0.04 }, { value: 0.9 }]);
+  assert.ok(withCollapse < 0.2, `a factor at 0.04 left the measurement at ${withCollapse}`);
+  assert.equal(combineTrust([{ value: 0.9 }, { value: 0 }]), 0);
+});
+
+test("combined trust is monotone in every factor", () => {
+  const base = [{ value: 0.7 }, { value: 0.8 }, { value: 0.6 }];
+  const better = [{ value: 0.7 }, { value: 0.9 }, { value: 0.6 }];
+  assert.ok(combineTrust(better) > combineTrust(base));
+  assert.ok(combineTrust([{ value: 1 }]) === 1);
 });

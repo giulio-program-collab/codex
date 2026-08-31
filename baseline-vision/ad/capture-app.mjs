@@ -93,12 +93,14 @@ for (const [name, heading, of] of [
  */
 const facts = await page.evaluate(() => {
   const row = document.querySelector("#metrics > *:first-child");
-  const explain = document.getElementById("verdict-explain").textContent.trim();
-  const score = document.querySelector(".quality .score, .quality");
+  const score = document.querySelector(".quality");
+  // The report itself, rather than a phrase scraped off the page: the wording
+  // around these numbers changes, the numbers are the numbers.
+  const report = window.Playground.currentReport();
   return {
     metricName: row.querySelector(".name").firstChild.textContent.trim(),
     metricValue: row.querySelector(".value > div").textContent.trim(),
-    usable: (explain.match(/^\d+ von \d+/) || [""])[0],
+    usable: report.verdict.measured.usable + " von " + report.verdict.measured.total,
     quality: (score.textContent.match(/\b(\d{1,3})\s*\/\s*100/) || [, ""])[1],
   };
 });

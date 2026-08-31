@@ -2,7 +2,7 @@
  * Re-exports so tests import from one place, plus a couple of thin wrappers
  * that keep the test files readable.
  */
-export { interval, measureFrom, probabilityBeyond } from "../src/core/uncertainty.ts";
+export { combineTrust, interval, measureFrom, probabilityBeyond } from "../src/core/uncertainty.ts";
 export { posteriorOutOfPlane as posteriorSanity } from "../src/layers/l06-lift3d.ts";
 
 import type { AnalysisReport } from "../src/layers/l14-report.ts";

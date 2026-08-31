@@ -187,7 +187,11 @@ export function renderPipelineTrail(report: AnalysisReport): string {
   );
   lines.push(
     `${"Gesamtbewertung".padEnd(42)} → ${
-      report.verdict.kind === "assessment" ? `${report.verdict.score}/100` : "verworfen"
+      report.verdict.kind === "assessment"
+        ? `${report.verdict.score}/100`
+        : report.verdict.kind === "partial"
+          ? `keine Note, ${report.verdict.measured.usable} Kenngrößen belastbar`
+          : "nichts messbar"
     }`,
   );
   return lines.join("\n");
@@ -195,10 +199,12 @@ export function renderPipelineTrail(report: AnalysisReport): string {
 
 /** Short coach-facing summary; the first thing shown in the dashboard header. */
 export function renderHeadline(report: AnalysisReport): string {
-  if (report.verdict.kind === "no_reliable_assessment") {
-    return `Keine zuverlässige Bewertung möglich — ${report.verdict.reasons[0] ?? "Datenlage unzureichend"}`;
+  const top = report.findings.find((f) => f.source !== "confirmation") ?? report.findings[0];
+  if (report.verdict.kind !== "assessment") {
+    // A partial result still has something to say, and the headline is where a
+    // reader decides whether to keep reading.
+    return top ? `${report.verdict.headline} ${top.observation}` : report.verdict.headline;
   }
-  const top = report.findings[0];
   const base = `${report.verdict.score}/100 bei ${Math.round((report.verdict.confidence ?? 0) * 100)} % Sicherheit`;
   return top ? `${base}. Wichtigster Befund: ${top.observation}` : base;
 }

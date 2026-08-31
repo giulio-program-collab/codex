@@ -1451,6 +1451,63 @@
     font-style: italic;
   }
 
+  /* Why there is no overall grade: available, but not in the way. A partial
+     result is the ordinary outcome for a single serve filmed on a phone, and
+     printing its causes at full volume made every such analysis read as a
+     failure. */
+  details.whynot {
+    margin-top: 0.7rem;
+    border-left: 2px solid var(--line);
+    padding-left: 0.9rem;
+  }
+
+  details.whynot > summary {
+    cursor: pointer;
+    font-size: 0.82rem;
+    color: var(--ink-soft);
+    list-style: none;
+  }
+
+  details.whynot > summary::before {
+    content: "▸ ";
+    color: var(--ink-faint);
+  }
+
+  details[open].whynot > summary::before {
+    content: "▾ ";
+  }
+
+  details.whynot > summary::-webkit-details-marker {
+    display: none;
+  }
+
+  details.whynot p {
+    font-size: 0.82rem;
+    color: var(--ink-soft);
+    margin-top: 0.5rem;
+    max-width: 72ch;
+  }
+
+  p.nextstep {
+    margin-top: 0.9rem;
+    font-size: 0.86rem;
+    color: var(--ink);
+    background: color-mix(in srgb, var(--accent) 10%, transparent);
+    border-left: 3px solid var(--accent);
+    padding: 0.6rem 0.9rem;
+    max-width: 72ch;
+  }
+
+  p.nextstep b {
+    color: var(--accent);
+  }
+
+  /* A list item that carries a block rather than a sentence. */
+  .verdict .reasons li.bare::before {
+    content: none;
+    margin-right: 0;
+  }
+
   footer.colophon {
     padding: 1.5rem clamp(1rem, 3vw, 2.25rem) 3rem;
     border-top: 1px solid var(--line);
@@ -2494,7 +2551,7 @@ function analyse(request, options = {}) {
         selfComparisons,
         quality,
     });
-    const verdict = (0, l13_interpretation_ts_1.decideVerdict)(composed.score, composed.components, quality, issues, (0, l12_confidence_ts_1.meanFeatureConfidence)(features.features));
+    const verdict = (0, l13_interpretation_ts_1.decideVerdict)(composed.score, composed.components, quality, issues, (0, l12_confidence_ts_1.meanFeatureConfidence)(features.features), features.features);
     layers.push({
         id: "L13",
         name: "Plausibilitätsprüfung & Interpretation",
@@ -7137,13 +7194,14 @@ function bodyAxes(pose) {
 __defs["src/core/uncertainty.ts"] = function (exports, require, module) {
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.isActionable = exports.isQuotable = exports.ACTIONABLE_CONFIDENCE = exports.QUOTABLE_CONFIDENCE = exports.ERROR_CORRELATED_FRACTION = exports.MC_SAMPLES = void 0;
+exports.isActionable = exports.isQuotable = exports.ACTIONABLE_CONFIDENCE = exports.QUOTABLE_CONFIDENCE = exports.WORST_TRUST_WEIGHT = exports.ERROR_CORRELATED_FRACTION = exports.MC_SAMPLES = void 0;
 exports.perturbPose = perturbPose;
 exports.propagatePose = propagatePose;
 exports.perturbSequence = perturbSequence;
 exports.propagateSequence = propagateSequence;
 exports.propagateSequenceClassified = propagateSequenceClassified;
 exports.propagate = propagate;
+exports.combineTrust = combineTrust;
 exports.measureFrom = measureFrom;
 exports.interval = interval;
 exports.probabilityBeyond = probabilityBeyond;
@@ -7324,9 +7382,54 @@ function propagate(draw, compute, _rng, samples = exports.MC_SAMPLES) {
     }
     return { value: (0, math_ts_1.mean)(vals), sd: (0, math_ts_1.sd)(vals), validFraction };
 }
+/**
+ * Weight of the worst trust factor when the factors are combined.
+ *
+ * At 0.5 the combined trust is the geometric mean of the factors and their
+ * minimum, in equal measure.
+ */
+exports.WORST_TRUST_WEIGHT = 0.5;
+/**
+ * Combines the trust factors of a measurement into one number in [0, 1].
+ *
+ * The factors used to be multiplied, and that was wrong in a way that took a
+ * long time to see. Multiplication is the right form for independent
+ * probabilities of survival — the chance that none of several separate faults
+ * occurred. These factors are not that. They are graded qualities of one
+ * measurement: how well the joints were seen, how sure the phase boundary is,
+ * how good the reconstruction is, whether the depth direction is resolved.
+ * Multiplying graded qualities makes the result fall off geometrically with the
+ * *number* of qualities anyone thought to check, so a pipeline that examines
+ * six aspects of its own work reports less confidence than one that examines
+ * three and looks away — with the same underlying video. In this pipeline four
+ * respectable factors (1.00, 0.90, 0.69, 0.50) produced 0.31, below every
+ * threshold downstream, and nothing was ever quotable.
+ *
+ * The geometric mean removes that count dependence: all-0.8 gives 0.8, whatever
+ * the length of the list. On its own it is too forgiving, because one collapsed
+ * factor can be averaged away by good company — and a measurement whose depth
+ * direction is unknown is not saved by clean joint detection. So the mean is
+ * pulled halfway toward the worst factor. A single factor near zero still
+ * drives the result to zero; several good ones now compound to a good one.
+ *
+ * This changes no interval. The spread of a measurement is the Monte-Carlo
+ * result and is untouched; what changes is only the gate that decides whether
+ * the number may be spoken aloud.
+ */
+function combineTrust(factors) {
+    if (factors.length === 0)
+        return 1;
+    const values = factors.map((f) => (0, math_ts_1.clamp)(f.value, 0, 1));
+    if (values.some((v) => v <= 0))
+        return 0;
+    const logMean = values.reduce((s, v) => s + Math.log(v), 0) / values.length;
+    const geometric = Math.exp(logMean);
+    const worst = Math.min(...values);
+    return (0, math_ts_1.clamp)(Math.pow(worst, exports.WORST_TRUST_WEIGHT) * Math.pow(geometric, 1 - exports.WORST_TRUST_WEIGHT), 0, 1);
+}
 function measureFrom(mc, spec) {
     const notes = [...(spec.notes ?? [])];
-    const trust = spec.trust.reduce((acc, t) => acc * (0, math_ts_1.clamp)(t.value, 0, 1), 1);
+    const trust = combineTrust(spec.trust);
     if (mc.value === null) {
         return {
             value: null,
@@ -7789,6 +7892,7 @@ function assessQuality(input) {
     };
     for (const c of components) {
         c.applicable = byId.get(layerOf[c.id] ?? "")?.status !== "skipped";
+        c.weight = weights[c.id] ?? 0;
     }
     const applicable = components.filter((c) => c.applicable !== false);
     const weightSum = applicable.reduce((s, c) => s + (weights[c.id] ?? 0), 0);
@@ -7809,18 +7913,34 @@ function assessQuality(input) {
         if (layer.status === "failed")
             blockers.push(`${layer.name}: fehlgeschlagen.`);
     }
+    // One cause, one sentence.
+    //
+    // Three separate rules used to fire on the same underlying fact — a video the
+    // pipeline could not read — and the reader got three notices for it: too few
+    // usable features, too many rejected ones, quality below a threshold whose
+    // number means nothing to anyone outside this file. A person reading that
+    // cannot tell whether they have one problem or three, and none of the three
+    // says what to do. So the root causes are checked in order of severity and
+    // only the first one that applies is reported, in the second person, with the
+    // remedy attached.
     const usable = input.features.filter((f) => f.measure.value !== null && !f.rejected && f.measure.confidence >= 0.35);
-    if (usable.length < 3) {
-        blockers.push(`Nur ${usable.length} belastbare Kenngrößen — zu wenig für eine Gesamteinschätzung ` +
-            "(mindestens 3 erforderlich).");
-    }
     const rejected = input.features.filter((f) => f.rejected);
-    if (rejected.length > input.features.length * 0.3) {
-        blockers.push(`${rejected.length} von ${input.features.length} Kenngrößen lagen außerhalb des physiologisch ` +
-            "Möglichen — die Pipeline arbeitet auf diesem Video nicht zuverlässig.");
+    const weakest = components
+        .filter((c) => c.applicable !== false)
+        .reduce((a, b) => (b.score < a.score ? b : a), components[0]);
+    if (rejected.length > input.features.length * 0.4) {
+        blockers.push(`${rejected.length} von ${input.features.length} Werten lagen außerhalb dessen, was ein Körper ` +
+            "kann. Das spricht dafür, dass im Video zwischendurch eine andere Person verfolgt wurde " +
+            "oder links und rechts vertauscht sind — nicht dafür, dass die Bewegung ungewöhnlich ist.");
     }
-    if (overall < exports.MIN_QUALITY_FOR_VERDICT) {
-        blockers.push(`Analysequalität ${overall}/100 liegt unter der Schwelle von ${exports.MIN_QUALITY_FOR_VERDICT}.`);
+    else if (usable.length === 0) {
+        blockers.push("Aus dieser Aufnahme ließ sich keine einzige Kenngröße sicher genug bestimmen, um sie zu nennen. " +
+            (weakest?.remedy ?? "Eine Aufnahme mit besserer Perspektive oder höherer Bildrate hilft."));
+    }
+    else if (overall < exports.MIN_QUALITY_FOR_VERDICT) {
+        blockers.push(`Die Aufnahme trägt einzelne Messwerte, aber nicht genug für ein Gesamturteil ` +
+            `(Analysequalität ${overall} von 100, nötig sind ${exports.MIN_QUALITY_FOR_VERDICT}). ` +
+            `Am meisten bringt: ${lowerFirst(weakest?.remedy ?? "eine Aufnahme mit höherer Bildrate.")}`);
     }
     return {
         overall,
@@ -7834,13 +7954,19 @@ function meanFeatureConfidence(features) {
     const usable = features.filter((f) => f.measure.value !== null && !f.rejected);
     return usable.length ? (0, math_ts_1.clamp)((0, math_ts_1.mean)(usable.map((f) => f.measure.confidence)) ?? 0, 0, 1) : 0;
 }
+/** "Kamera weiter weg …" → "kamera weiter weg …", for use mid-sentence. */
+function lowerFirst(text) {
+    return text.length > 1 && text[1] === text[1].toLowerCase()
+        ? text[0].toLowerCase() + text.slice(1)
+        : text;
+}
 
 };
 
 __defs["src/layers/l13-interpretation.ts"] = function (exports, require, module) {
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.MIN_SCORING_FEATURES = exports.MECHANICAL_RULES = void 0;
+exports.MIN_SCORING_FEATURES = exports.MAX_CONFIRMATIONS = exports.MECHANICAL_RULES = void 0;
 exports.runPlausibilityChecks = runPlausibilityChecks;
 exports.buildFindings = buildFindings;
 exports.composeScore = composeScore;
@@ -8079,6 +8205,9 @@ exports.MECHANICAL_RULES = [
         minProbability: 0.85,
         observation: (v, sd) => `Der Rumpf erreicht seine maximale Rotationsgeschwindigkeit ${Math.abs(v * 1000).toFixed(0)} ms ` +
             `vor dem Becken${sd !== null ? ` (± ${(sd * 1000).toFixed(0)} ms)` : ""} — die Reihenfolge ist umgekehrt.`,
+        confirmation: (v, sd) => `Das Becken erreicht seine maximale Rotationsgeschwindigkeit ${(v * 1000).toFixed(0)} ms ` +
+            `vor dem Rumpf${sd !== null ? ` (± ${(sd * 1000).toFixed(0)} ms)` : ""} — die Reihenfolge der ` +
+            "kinetischen Kette stimmt.",
         interpretation: "In einer intakten kinetischen Kette beschleunigt jedes Segment, während das darunterliegende " +
             "bereits abbremst. Dreht der Rumpf zuerst, fehlt ihm die Basis, gegen die er arbeiten könnte.",
         consequence: "Der Arm muss einen größeren Teil der Beschleunigung übernehmen. Das kostet Schlägerkopf" +
@@ -8094,6 +8223,8 @@ exports.MECHANICAL_RULES = [
         minProbability: 0.85,
         observation: (v, sd) => `Das Becken steigt zwischen tiefster Ladung und Treffpunkt nur ${(v * 100).toFixed(0)} cm` +
             `${sd !== null ? ` (± ${(sd * 100).toFixed(0)} cm)` : ""}.`,
+        confirmation: (v, sd) => `Das Becken steigt zwischen tiefster Ladung und Treffpunkt um ${(v * 100).toFixed(0)} cm` +
+            `${sd !== null ? ` (± ${(sd * 100).toFixed(0)} cm)` : ""} — ein Beinantrieb ist da.`,
         interpretation: "Der Beinantrieb ist der Anfang der Kette und der einzige Punkt, an dem gegen den Boden " +
             "gearbeitet werden kann.",
         consequence: "Ohne vertikalen Antrieb sinkt der Treffpunkt, und der Aufschlag muss flacher gespielt werden, " +
@@ -8108,6 +8239,8 @@ exports.MECHANICAL_RULES = [
         direction: "below",
         minProbability: 0.85,
         observation: (v, sd) => `Die maximale Knieflexion erreicht nur ${v.toFixed(0)}°${sd !== null ? ` (± ${sd.toFixed(0)}°)` : ""}.`,
+        confirmation: (v, sd) => `Die maximale Knieflexion erreicht ${v.toFixed(0)}°${sd !== null ? ` (± ${sd.toFixed(0)}°)` : ""} — ` +
+            "eine Ladephase findet statt.",
         interpretation: "Unter etwa 25° findet praktisch keine Ladephase statt; die Bewegung beginnt faktisch im Rumpf.",
         consequence: "Die gesamte Beschleunigung muss von Rumpf und Arm geleistet werden, was sowohl Geschwindigkeit " +
             "kostet als auch die Schulter stärker belastet.",
@@ -8115,15 +8248,43 @@ exports.MECHANICAL_RULES = [
             "der Antrieb. Danach im Video prüfen, ob die Beugung im Wettkampftempo erhalten bleibt.",
     },
 ];
+/**
+ * How many confirmations a report may carry.
+ *
+ * Enough that a clean analysis is not an empty page, few enough that the things
+ * worth working on stay at the top of it.
+ */
+exports.MAX_CONFIRMATIONS = 4;
 function buildFindings(input) {
     const findings = [];
+    const confirmations = [];
     const byId = new Map(input.features.map((f) => [f.id, f]));
     for (const rule of exports.MECHANICAL_RULES) {
         const feature = byId.get(rule.featureId);
         if (!feature || feature.rejected || !(0, uncertainty_ts_1.isQuotable)(feature.measure))
             continue;
         const p = (0, uncertainty_ts_1.probabilityBeyond)(feature.measure, rule.threshold, rule.direction);
-        if (p === null || p < rule.minProbability)
+        if (p === null)
+            continue;
+        // The same rule, read from the other side. If the true value is on the safe
+        // side of the threshold with the same certainty the fault would require,
+        // that is a result and it is said out loud.
+        if (1 - p >= rule.minProbability) {
+            const confidence = (0, math_ts_1.clamp)(feature.measure.confidence * (1 - p), 0, 0.95);
+            confirmations.push({
+                id: `ok_${rule.id}`,
+                observation: rule.confirmation(feature.measure.value, feature.measure.sd),
+                interpretation: rule.interpretation,
+                consequence: "An dieser Stelle ist nichts zu ändern.",
+                recommendation: "Kein Handlungsbedarf. Bei der nächsten Aufnahme prüfen, ob es so bleibt.",
+                confidence,
+                confidenceLabel: (0, uncertainty_ts_1.band)(confidence),
+                priority: confidence,
+                source: "confirmation",
+            });
+            continue;
+        }
+        if (p < rule.minProbability)
             continue;
         const confidence = (0, math_ts_1.clamp)(feature.measure.confidence * p, 0, 0.95);
         findings.push({
@@ -8154,7 +8315,29 @@ function buildFindings(input) {
         // Only deviations that are both large relative to the *combined* spread and
         // on the mechanically meaningful side become findings. Everything else is
         // a number in the table, not advice.
-        if (c.deviation === "im_band" || c.deviation === "nicht_unterscheidbar")
+        if (c.deviation === "im_band") {
+            // A value inside the band, measured well enough that a deviation would
+            // have shown, is the answer to "is there anything wrong with this?" —
+            // and the answer is no. Only an informative comparison may say it: on a
+            // comparison too blunt to distinguish, "inside the band" means nothing.
+            if (c.informative && c.confidence >= 0.5) {
+                confirmations.push({
+                    id: `ok_ref_${c.featureId}`,
+                    observation: `${feature.label}: ${(0, uncertainty_ts_1.formatMeasure)(feature.measure, feature.measure.unit === "s" ? 3 : 1)} — ` +
+                        `im Bereich der Referenz (${c.band.mean}${c.band.unit} ± ` +
+                        `${c.combinedSd.toFixed(c.band.unit === "s" ? 3 : 1)}${c.band.unit}, ${c.band.sourceId}).`,
+                    interpretation: c.band.mechanism,
+                    consequence: "Diese Aufnahme zeigt hier keine Abweichung, für die es einen Wirkmechanismus gäbe.",
+                    recommendation: "Kein Handlungsbedarf.",
+                    confidence: c.confidence,
+                    confidenceLabel: (0, uncertainty_ts_1.band)(c.confidence),
+                    priority: c.confidence,
+                    source: "confirmation",
+                });
+            }
+            continue;
+        }
+        if (c.deviation === "nicht_unterscheidbar")
             continue;
         // A band whose measurement convention we could not confirm is context, not
         // evidence.
@@ -8205,7 +8388,11 @@ function buildFindings(input) {
             source: "self",
         });
     }
-    return findings.sort((a, b) => b.priority - a.priority);
+    confirmations.sort((a, b) => b.confidence - a.confidence);
+    return [
+        ...findings.sort((a, b) => b.priority - a.priority),
+        ...confirmations.slice(0, exports.MAX_CONFIRMATIONS),
+    ];
 }
 function consequenceFor(c) {
     const side = (c.z ?? 0) < 0 ? "niedriger" : "höher";
@@ -8277,30 +8464,60 @@ function composeScore(comparisons, features) {
     const score = components.reduce((s, c) => s + c.score * c.weight, 0) / totalWeight;
     return { score, components };
 }
-function decideVerdict(compositeScore, components, quality, issues, featureConfidence) {
+/**
+ * The one change to the next recording that would buy the most.
+ *
+ * Ranking by the lowest score alone gives bad advice: ball tracking carries a
+ * twentieth of the analysis quality, so it is usually the weakest component and
+ * usually not worth anyone's afternoon. What matters is how much of the score
+ * is actually lost there — the shortfall times the weight — and below a couple
+ * of points of recoverable quality there is nothing worth saying at all.
+ */
+const WORTH_MENTIONING = 2.5;
+function nextStepFrom(quality) {
+    const ranked = quality.components
+        .filter((c) => c.applicable !== false && c.remedy !== null)
+        .map((c) => ({ c, gain: (c.weight ?? 0) * (100 - c.score) }))
+        .sort((a, b) => b.gain - a.gain);
+    const best = ranked[0];
+    return best && best.gain >= WORTH_MENTIONING ? best.c.remedy : null;
+}
+function decideVerdict(compositeScore, components, quality, issues, featureConfidence, features) {
     const blocking = issues.filter((i) => i.severity === "blocking");
-    if (compositeScore === null) {
+    const usable = features.filter((f) => f.measure.value !== null && !f.rejected && (0, uncertainty_ts_1.isQuotable)(f.measure));
+    const measured = { usable: usable.length, total: features.length };
+    const nextStep = nextStepFrom(quality);
+    // Nothing survived. This is the only case that is genuinely a refusal.
+    if (usable.length === 0) {
         return {
             kind: "no_reliable_assessment",
-            statement: "Keine zuverlässige Bewertung möglich — es konnten nicht genügend Kenngrößen so genau gemessen " +
-                "werden, dass ein Vergleich mit den Referenzverteilungen überhaupt etwas unterscheiden könnte.",
-            reasons: quality.blockers.length
-                ? quality.blockers
-                : [
-                    `Weniger als ${exports.MIN_SCORING_FEATURES} Kenngrößen erreichen die nötige Messgenauigkeit. ` +
-                        "Die Messunsicherheit ist größer als die Streuung der Referenzgruppe: Jeder Wert läge " +
-                        "innerhalb des Bandes, unabhängig von der tatsächlichen Technik.",
-                    "Wirksamste Abhilfe: Platzlinien mit ins Bild nehmen (kalibriert die Brennweite), " +
-                        "Kamera erhöht und seitlich-diagonal aufstellen, mit mindestens 120 fps filmen.",
-                ],
+            headline: "Aus dieser Aufnahme lässt sich nichts messen.",
+            statement: "Kein einziger Wert war sicher genug zu bestimmen, um ihn zu nennen. Das ist eine Aussage " +
+                "über die Aufnahme, nicht über den Aufschlag.",
+            reasons: quality.blockers.length ? quality.blockers : blocking.map((b) => b.statement),
+            measured,
+            nextStep,
         };
     }
-    if (blocking.length > 0) {
+    // Measurements exist, but no grade. The ordinary case, and not a failure:
+    // the report below it is full.
+    if (compositeScore === null || blocking.length > 0) {
+        const why = compositeScore === null
+            ? `Für eine Gesamtnote braucht es ${exports.MIN_SCORING_FEATURES} Kenngrößen, die sich mit einer ` +
+                "Referenzgruppe vergleichen lassen. Aus einem einzelnen Aufschlag sind es meist weniger — " +
+                "die Timing-Größen etwa tragen erst im Mittel aus mehreren Wiederholungen."
+            : "Die Prüfung der Pipeline hat Gründe ergeben, einer Gesamtnote nicht zu trauen. Die " +
+                "einzelnen Messwerte bleiben davon unberührt.";
         return {
-            kind: "no_reliable_assessment",
-            statement: "Keine zuverlässige Bewertung möglich. Die Analyse wurde erstellt, aber die Prüfung der " +
-                "Pipeline hat Gründe ergeben, ihr nicht zu vertrauen.",
-            reasons: blocking.map((b) => b.statement),
+            kind: "partial",
+            headline: usable.length === 1
+                ? "Eine Kenngröße ist belastbar — für eine Gesamtnote reicht es nicht."
+                : `${usable.length} Kenngrößen sind belastbar — für eine Gesamtnote reicht es nicht.`,
+            statement: "Die Messwerte unten gelten, jeder mit seinem Intervall. Was fehlt, ist die eine Zahl " +
+                "darüber — und die fehlt aus einem benennbaren Grund, nicht aus Vorsicht.",
+            reasons: [why, ...quality.blockers, ...blocking.map((b) => b.statement)],
+            measured,
+            nextStep,
         };
     }
     const rounded = Math.round(compositeScore);
@@ -8323,9 +8540,12 @@ function decideVerdict(compositeScore, components, quality, issues, featureConfi
         score: rounded,
         confidence: (0, math_ts_1.clamp)(featureConfidence * (quality.overall / 100), 0, 1),
         components,
+        headline: "Diese Aufnahme trägt eine Bewertung.",
         statement: "Die Bewertung setzt sich aus den unten aufgeführten Teilwerten zusammen und gilt nur für die " +
             "Größen, die in diesem Video messbar waren.",
         reasons,
+        measured,
+        nextStep,
     };
 }
 /** How many features the composite score could draw on if everything were measurable. */
@@ -10789,22 +11009,41 @@ globalThis["BaselineVision"] = __entry;
   }
 
   function renderVerdict(report) {
-    // The headline says what the system is willing to claim about this clip.
-    // The engine's own sentence follows underneath, unedited.
-    const quotable = report.metrics.filter((m) => !m.rejected && m.confidence >= 0.6).length;
-    $("verdict-statement").textContent =
-      report.verdict.kind === "assessment"
-        ? "Diese Aufnahme trägt eine Bewertung."
-        : "Diese Aufnahme trägt keine Bewertung.";
-    $("verdict-explain").textContent =
-      quotable +
-      " von " +
-      (report.metrics.length + report.notMeasurable.length) +
-      " Kenngrößen sind belastbar genug, um sie zu zitieren. " +
-      report.verdict.statement;
+    // The headline is the engine's, in the engine's words. It used to be
+    // composed here from the verdict *kind*, which meant every clip without an
+    // overall grade was announced as "trägt keine Bewertung" — including the
+    // ordinary case of fifteen good measurements and no composite. The engine
+    // now distinguishes those, and the interface says what it says.
+    const verdict = report.verdict;
+    $("verdict-statement").textContent = verdict.headline;
+    $("verdict-explain").textContent = verdict.statement;
+
     const reasons = $("verdict-reasons");
     clear(reasons);
-    report.verdict.reasons.forEach((reason) => reasons.appendChild(el("li", null, reason)));
+    // On a partial result the reasons are background, not an indictment: they
+    // go behind a disclosure so the measurements are what the eye lands on.
+    if (verdict.kind === "partial" && verdict.reasons.length) {
+      const item = el("li", "bare");
+      const details = document.createElement("details");
+      details.className = "whynot";
+      const summary = document.createElement("summary");
+      summary.textContent = "Warum keine Gesamtnote?";
+      details.appendChild(summary);
+      verdict.reasons.forEach((reason) => details.appendChild(el("p", null, reason)));
+      item.appendChild(details);
+      reasons.appendChild(item);
+    } else {
+      verdict.reasons.forEach((reason) => reasons.appendChild(el("li", null, reason)));
+    }
+
+    if (verdict.nextStep) {
+      const item = el("li", "bare");
+      const step = el("p", "nextstep");
+      step.appendChild(el("b", null, "Nächstes Mal: "));
+      step.appendChild(document.createTextNode(verdict.nextStep));
+      item.appendChild(step);
+      reasons.appendChild(item);
+    }
 
     const scoreHost = $("verdict-score");
     clear(scoreHost);
@@ -10833,7 +11072,11 @@ globalThis["BaselineVision"] = __entry;
     }
 
     $("verdict-aside").textContent =
-      report.verdict.kind === "assessment" ? "Bewertung möglich" : "keine belastbare Bewertung";
+      verdict.kind === "assessment"
+        ? "Bewertung möglich"
+        : verdict.kind === "partial"
+          ? verdict.measured.usable + " von " + verdict.measured.total + " Kenngrößen belastbar"
+          : "nichts messbar";
   }
 
   function renderQuality(quality) {
@@ -10871,9 +11114,16 @@ globalThis["BaselineVision"] = __entry;
       });
       blockers.appendChild(card);
     } else {
-      const worst = quality.components.slice().sort((a, b) => a.score - b.score)[0];
-      if (worst && worst.remedy && worst.score < 80) {
-        const hint = el("p", "prose", "Schwächster Anteil: " + worst.label + ". " + worst.remedy);
+      // Naming the weakest part, not prescribing a fix for it. The advice on
+      // this screen lives in one place — "Nächstes Mal" under the verdict —
+      // and it ranks by how much quality a change would actually recover,
+      // which is rarely the same component as the lowest bar.
+      const worst = quality.components
+        .filter((c) => c.applicable !== false)
+        .slice()
+        .sort((a, b) => a.score - b.score)[0];
+      if (worst && worst.score < 80) {
+        const hint = el("p", "prose", "Schwächster Anteil: " + worst.label + " (" + worst.score + ").");
         hint.style.fontSize = "0.8rem";
         blockers.appendChild(hint);
       }
@@ -11403,16 +11653,44 @@ globalThis["BaselineVision"] = __entry;
     const host = $("findings");
     clear(host);
     if (!report.findings.length) {
-      host.appendChild(el("p", "empty", "Keine Beobachtung ist belastbar genug, um daraus einen Hinweis abzuleiten."));
+      // Two very different silences used to share one sentence. "Nothing was
+      // measurable" is a problem with the recording; "nothing deviated" is an
+      // answer to the question that was asked. Saying the first when the second
+      // is true tells a coach their video failed when in fact their player is
+      // fine.
+      const measurable = report.metrics.some((m) => !m.rejected && m.value !== null);
+      host.appendChild(
+        el(
+          "p",
+          "empty",
+          measurable
+            ? "Kein Hinweis: Auf den messbaren Größen weicht nichts so weit ab, dass ein " +
+              "biomechanischer Wirkmechanismus dahinterstünde. Die Werte stehen unten."
+            : "Aus dieser Aufnahme ließ sich nichts messen, woraus ein Hinweis folgen könnte.",
+        ),
+      );
       return;
+    }
+    const faults = report.findings.filter((f) => f.source !== "confirmation");
+    const confirmations = report.findings.filter((f) => f.source === "confirmation");
+    if (faults.length === 0 && confirmations.length) {
+      host.appendChild(
+        el(
+          "p",
+          "empty",
+          "Nichts zu beanstanden auf den Größen, die diese Aufnahme hergibt. Was geprüft und " +
+            "in Ordnung befunden wurde, steht darunter.",
+        ),
+      );
     }
     report.findings.forEach((finding) => {
       const card = el("div", "card");
-      card.dataset.tone = toneForConfidence(finding.confidence);
-      const head = el("h3", null, finding.observation);
+      const ok = finding.source === "confirmation";
+      card.dataset.tone = ok ? "good" : toneForConfidence(finding.confidence);
+      const head = el("h3", null, (ok ? "\u2713 " : "") + finding.observation);
       card.appendChild(head);
-      const chip = el("span", "chip", finding.confidenceLabel);
-      chip.dataset.tone = toneForConfidence(finding.confidence);
+      const chip = el("span", "chip", ok ? "geprüft · " + finding.confidenceLabel : finding.confidenceLabel);
+      chip.dataset.tone = ok ? "good" : toneForConfidence(finding.confidence);
       card.appendChild(chip);
       const dl = document.createElement("dl");
       [
@@ -11794,6 +12072,8 @@ globalThis["BaselineVision"] = __entry;
     },
     fail,
     setBusy,
+    /** The report currently on screen, for capture tooling and debugging. */
+    currentReport: () => (state.result ? state.result.report : null),
   });
 
   buildControls();

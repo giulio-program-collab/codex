@@ -25,9 +25,26 @@ Engine gar nicht produzieren kann, und genau in dieser Lücke kehrt das
 
 ### Urteil
 
-Entweder ein Gesamtwert mit sichtbaren Komponenten, Gewichten und den Kenngrößen,
-aus denen jede Komponente stammt — oder, deutlich hervorgehoben, „Keine
-zuverlässige Bewertung möglich" mit den Gründen.
+Drei mögliche Zustände, nicht zwei:
+
+| Zustand | Wann | Was der Nutzer sieht |
+| --- | --- | --- |
+| **Bewertung** | Gesamtwert tragfähig | Wert mit sichtbaren Komponenten, Gewichten und den Kenngrößen, aus denen jede Komponente stammt |
+| **Teilbefund** | Messwerte ja, Gesamtnote nein | „_n_ Kenngrößen sind belastbar — für eine Gesamtnote reicht es nicht", die Messwerte darunter vollständig, der Grund hinter einem Aufklapper |
+| **Absage** | Nichts messbar | „Aus dieser Aufnahme lässt sich nichts messen", mit dem Grund und der wirksamsten Abhilfe |
+
+Der mittlere Zustand ist der häufigste und war lange nicht vorgesehen. Ein
+einzelner Aufschlag vom Handy liefert regelmäßig fünfzehn saubere Messwerte und
+trotzdem keine Gesamtnote — die Note braucht drei Referenzvergleiche, und die
+Timing-Größen tragen erst im Mittel aus mehreren Wiederholungen. Wer in diesem
+Fall „Keine zuverlässige Bewertung möglich" liest, hält seine Aufnahme für
+gescheitert, obwohl der Bericht darunter voll ist. Der Zustand hat deshalb einen
+eigenen Namen, eine eigene Überschrift und einen eigenen Ton bekommen.
+
+Unter jedem Zustand steht **ein** Handlungshinweis: die eine Änderung an der
+nächsten Aufnahme, die am meisten Analysequalität zurückholt. Er rangiert nach
+Wirkung — Gewicht mal Rückstand —, nicht nach der niedrigsten Balkenhöhe. Sonst
+zeigt er immer auf das Ball-Tracking, das ein Zwanzigstel der Qualität trägt.
 
 Ein hoher Wert wird ausdrücklich eingeordnet. 100/100 heißt nicht „technisch
 perfekt", sondern: _auf keiner messbaren Dimension liegt eine Abweichung vor, für
@@ -85,6 +102,15 @@ Jeder Befund in der geforderten Struktur:
 > **Konsequenz** Ohne vertikalen Antrieb sinkt der Treffpunkt, und der Aufschlag muss flacher gespielt werden — das kostet Sicherheitsmarge über dem Netz.
 > **Empfehlung** Beinantrieb isoliert aufbauen: Ladephase halten, dann Absprung auf eine markierte Landeposition. Zunächst ohne Ball, dann mit reduziertem Tempo.
 > **Sicherheit** 85 % · hoch
+
+Nicht nur Beanstandungen. Eine Regel, die nur meckert, ist eine halbe Regel: Wenn
+die Reihenfolge der kinetischen Kette stimmt, ist das ein Ergebnis — die Sache,
+um die es dem Trainer ging, geprüft und in Ordnung befunden. Solche
+**Bestätigungen** stehen mit Haken und in ruhiger Farbe unter den Beanstandungen,
+höchstens vier davon, und tragen nie eine Trainingsempfehlung. Vorher war das
+Panel bei einem sauberen Aufschlag leer, mit dem Satz „Keine Beobachtung ist
+belastbar genug" — der die Aufnahme beschuldigt, wo in Wahrheit nichts zu
+beanstanden war.
 
 Sortiert nach erwartetem Nutzen — Confidence mal Effektgröße mal Trainierbarkeit —,
 nicht nach Abweichungsgröße.
