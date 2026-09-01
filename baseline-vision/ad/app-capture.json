@@ -1,0 +1,22 @@
+{
+  "regions": {
+    "verdict": [
+      1182,
+      108,
+      2051,
+      952
+    ],
+    "metrics": [
+      17,
+      319,
+      2051,
+      554
+    ]
+  },
+  "facts": {
+    "metricName": "Maximale Knieflexion (vorderes Bein)",
+    "metricValue": "65.1 ± 7.2 °",
+    "usable": "16 von 16",
+    "quality": "89"
+  }
+}

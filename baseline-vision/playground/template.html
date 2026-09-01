@@ -1,0 +1,2035 @@
+<title>Baseline Vision Prüfstand</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link
+  rel="stylesheet"
+  href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;600;700&family=IBM+Plex+Mono:wght@400;500;600&family=Source+Serif+4:opsz,wght@8..60,400;8..60,600&display=swap"
+/>
+
+<style>
+  :root {
+    --ground: #e6eaec;
+    --surface: #fbfcfd;
+    --surface-sunk: #eff2f4;
+    --ink: #101619;
+    --ink-soft: #57646c;
+    --ink-faint: #87949c;
+    --line: #ccd5da;
+    --line-strong: #a9b6bd;
+    --accent: #0b6b68;
+    --accent-ink: #ffffff;
+    --accent-wash: rgba(11, 107, 104, 0.1);
+    --warn: #8f5c05;
+    --warn-wash: rgba(143, 92, 5, 0.12);
+    --alert: #92261d;
+    --alert-wash: rgba(146, 38, 29, 0.1);
+    --truth: #7d8c00;
+    --truth-line: #93a406;
+    --shadow: 0 1px 2px rgba(16, 22, 25, 0.06), 0 8px 24px -16px rgba(16, 22, 25, 0.3);
+
+    --step--1: 0.78rem;
+    --step-0: 0.94rem;
+    --step-1: 1.13rem;
+    --step-2: 1.44rem;
+    --step-3: 1.95rem;
+    --step-4: 2.6rem;
+
+    --display: "Archivo", "Helvetica Neue", Arial, sans-serif;
+    --body: "Source Serif 4", Georgia, "Times New Roman", serif;
+    --data: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+
+    color-scheme: light;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --ground: #0d1113;
+      --surface: #151b1e;
+      --surface-sunk: #101618;
+      --ink: #e7edef;
+      --ink-soft: #97a5ac;
+      --ink-faint: #6f7d85;
+      --line: #263036;
+      --line-strong: #3b4950;
+      --accent: #4dbdb4;
+      --accent-ink: #06201f;
+      --accent-wash: rgba(77, 189, 180, 0.14);
+      --warn: #d9a24a;
+      --warn-wash: rgba(217, 162, 74, 0.14);
+      --alert: #e2766a;
+      --alert-wash: rgba(226, 118, 106, 0.13);
+      --truth: #c3d635;
+      --truth-line: #c3d635;
+      --shadow: 0 1px 2px rgba(0, 0, 0, 0.4), 0 10px 30px -18px rgba(0, 0, 0, 0.8);
+      color-scheme: dark;
+    }
+  }
+
+  :root[data-theme="dark"] {
+    --ground: #0d1113;
+    --surface: #151b1e;
+    --surface-sunk: #101618;
+    --ink: #e7edef;
+    --ink-soft: #97a5ac;
+    --ink-faint: #6f7d85;
+    --line: #263036;
+    --line-strong: #3b4950;
+    --accent: #4dbdb4;
+    --accent-ink: #06201f;
+    --accent-wash: rgba(77, 189, 180, 0.14);
+    --warn: #d9a24a;
+    --warn-wash: rgba(217, 162, 74, 0.14);
+    --alert: #e2766a;
+    --alert-wash: rgba(226, 118, 106, 0.13);
+    --truth: #c3d635;
+    --truth-line: #c3d635;
+    --shadow: 0 1px 2px rgba(0, 0, 0, 0.4), 0 10px 30px -18px rgba(0, 0, 0, 0.8);
+    color-scheme: dark;
+  }
+
+  * {
+    box-sizing: border-box;
+  }
+
+  /* `hidden` is a presentation hint that any `display` rule silently beats, and
+     several blocks here are laid out with flex. Without this, hiding them from
+     script does nothing at all. */
+  [hidden] {
+    display: none !important;
+  }
+
+  body {
+    margin: 0;
+    background: var(--ground);
+    color: var(--ink);
+    font-family: var(--body);
+    font-size: var(--step-0);
+    line-height: 1.55;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  h1,
+  h2,
+  h3,
+  h4 {
+    font-family: var(--display);
+    font-weight: 600;
+    line-height: 1.15;
+    text-wrap: balance;
+    margin: 0;
+    letter-spacing: -0.011em;
+  }
+
+  p {
+    margin: 0;
+  }
+
+  a {
+    color: var(--accent);
+  }
+
+  .eyebrow {
+    font-family: var(--data);
+    font-size: 0.68rem;
+    font-weight: 500;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--ink-faint);
+  }
+
+  .num {
+    font-family: var(--data);
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* ---------------------------------------------------------------- */
+  /* Frame                                                             */
+  /* ---------------------------------------------------------------- */
+
+  .masthead {
+    position: sticky;
+    top: 0;
+    z-index: 30;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 0.6rem 1.25rem;
+    padding: 0.85rem clamp(1rem, 3vw, 2.25rem);
+    background: color-mix(in srgb, var(--ground) 88%, transparent);
+    backdrop-filter: blur(10px);
+    border-bottom: 1px solid var(--line);
+  }
+
+  .masthead h1 {
+    font-size: var(--step-1);
+    letter-spacing: -0.02em;
+  }
+
+  .masthead .sub {
+    color: var(--ink-soft);
+    font-size: var(--step--1);
+    max-width: 62ch;
+  }
+
+  .masthead .spacer {
+    flex: 1 1 2rem;
+  }
+
+  .runstate {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-family: var(--data);
+    font-size: 0.72rem;
+    color: var(--ink-soft);
+    white-space: nowrap;
+  }
+
+  .runstate .dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--accent);
+  }
+
+  body[data-busy="true"] .runstate .dot {
+    animation: pulse 1.1s ease-in-out infinite;
+  }
+
+  @keyframes pulse {
+    0%,
+    100% {
+      opacity: 0.25;
+    }
+    50% {
+      opacity: 1;
+    }
+  }
+
+  .progress {
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: -1px;
+    height: 2px;
+    background: transparent;
+    overflow: hidden;
+  }
+
+  .progress i {
+    display: block;
+    height: 100%;
+    width: 0%;
+    background: var(--accent);
+    transition: width 0.25s ease;
+  }
+
+  .shell {
+    display: grid;
+    grid-template-columns: minmax(250px, 300px) minmax(0, 1fr);
+    gap: clamp(1rem, 2vw, 1.75rem);
+    align-items: start;
+    padding: clamp(1rem, 2.4vw, 1.75rem) clamp(1rem, 3vw, 2.25rem) 4rem;
+  }
+
+  @media (max-width: 900px) {
+    .shell {
+      grid-template-columns: minmax(0, 1fr);
+    }
+  }
+
+  /* ---------------------------------------------------------------- */
+  /* Control rail                                                      */
+  /* ---------------------------------------------------------------- */
+
+  .rail {
+    position: sticky;
+    top: 4.6rem;
+    display: flex;
+    flex-direction: column;
+    gap: 1.1rem;
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: 3px;
+    padding: 1.1rem 1rem 1.2rem;
+    box-shadow: var(--shadow);
+  }
+
+  @media (max-width: 900px) {
+    .rail {
+      position: static;
+    }
+  }
+
+  .rail .field {
+    display: flex;
+    flex-direction: column;
+    gap: 0.42rem;
+  }
+
+  .rail label.name {
+    font-family: var(--data);
+    font-size: 0.68rem;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--ink-faint);
+  }
+
+  .rail .hint {
+    font-size: 0.76rem;
+    color: var(--ink-soft);
+    line-height: 1.4;
+  }
+
+  select,
+  input[type="number"] {
+    font-family: var(--data);
+    font-size: 0.83rem;
+    color: var(--ink);
+    background: var(--surface-sunk);
+    border: 1px solid var(--line);
+    border-radius: 2px;
+    padding: 0.42rem 0.5rem;
+    width: 100%;
+  }
+
+  .segmented {
+    display: flex;
+    border: 1px solid var(--line);
+    border-radius: 2px;
+    overflow: hidden;
+  }
+
+  .segmented button {
+    flex: 1 1 0;
+    font-family: var(--data);
+    font-size: 0.76rem;
+    padding: 0.4rem 0.25rem;
+    background: var(--surface-sunk);
+    color: var(--ink-soft);
+    border: 0;
+    border-right: 1px solid var(--line);
+    cursor: pointer;
+    transition: background 0.12s ease, color 0.12s ease;
+  }
+
+  .segmented button:last-child {
+    border-right: 0;
+  }
+
+  .segmented button[aria-pressed="true"] {
+    background: var(--accent);
+    color: var(--accent-ink);
+  }
+
+  .segmented button:hover:not([aria-pressed="true"]) {
+    background: var(--accent-wash);
+    color: var(--ink);
+  }
+
+  .switch {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.6rem;
+    cursor: pointer;
+    padding: 0.15rem 0;
+  }
+
+  .switch input {
+    appearance: none;
+    flex: 0 0 auto;
+    width: 34px;
+    height: 19px;
+    margin: 0.15rem 0 0;
+    border-radius: 10px;
+    background: var(--line-strong);
+    position: relative;
+    cursor: pointer;
+    transition: background 0.15s ease;
+  }
+
+  .switch input::after {
+    content: "";
+    position: absolute;
+    top: 2px;
+    left: 2px;
+    width: 15px;
+    height: 15px;
+    border-radius: 50%;
+    background: var(--surface);
+    transition: transform 0.15s ease;
+  }
+
+  .switch input:checked {
+    background: var(--accent);
+  }
+
+  .switch input:checked::after {
+    transform: translateX(15px);
+  }
+
+  .switch .text {
+    font-size: 0.82rem;
+    line-height: 1.35;
+  }
+
+  .switch .text small {
+    display: block;
+    color: var(--ink-soft);
+    font-size: 0.72rem;
+  }
+
+  input[type="range"] {
+    width: 100%;
+    accent-color: var(--accent);
+  }
+
+  :where(button, select, input, [tabindex]):focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+  }
+
+  .steps {
+    display: flex;
+    list-style: none;
+    margin: 0 0 0.2rem;
+    padding: 0;
+    gap: 0.3rem;
+    font-family: var(--data);
+    font-size: 0.68rem;
+    color: var(--ink-faint);
+  }
+
+  .steps li {
+    flex: 1 1 0;
+    display: flex;
+    align-items: center;
+    gap: 0.3rem;
+    border-top: 2px solid var(--line);
+    padding-top: 0.35rem;
+    white-space: nowrap;
+    overflow: hidden;
+  }
+
+  .steps li b {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 15px;
+    height: 15px;
+    border-radius: 50%;
+    background: var(--line);
+    color: var(--surface);
+    font-size: 0.6rem;
+    flex: 0 0 auto;
+  }
+
+  .steps li[data-state="active"] {
+    border-top-color: var(--accent);
+    color: var(--ink);
+  }
+
+  .steps li[data-state="active"] b,
+  .steps li[data-state="done"] b {
+    background: var(--accent);
+    color: var(--accent-ink);
+  }
+
+  .steps li[data-state="done"] {
+    border-top-color: var(--accent);
+  }
+
+  button.primary {
+    width: 100%;
+    font-family: var(--display);
+    font-size: 0.92rem;
+    font-weight: 600;
+    padding: 0.6rem 0.75rem;
+    background: var(--accent);
+    color: var(--accent-ink);
+    border: 0;
+    border-radius: 2px;
+    cursor: pointer;
+    transition: filter 0.15s ease;
+  }
+
+  button.primary:hover:not(:disabled) {
+    filter: brightness(1.1);
+  }
+
+  button.primary:disabled {
+    opacity: 0.5;
+    cursor: default;
+  }
+
+  .progress-line {
+    height: 4px;
+    background: var(--surface-sunk);
+    border: 1px solid var(--line);
+    overflow: hidden;
+  }
+
+  .progress-line i {
+    display: block;
+    height: 100%;
+    width: 0%;
+    background: var(--accent);
+    transition: width 0.3s ease;
+  }
+
+  .pair {
+    display: flex;
+    gap: 0.5rem;
+  }
+
+  .pair > * {
+    flex: 1 1 0;
+    min-width: 0;
+  }
+
+  .suffixed {
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
+  }
+
+  .suffixed input {
+    flex: 1 1 auto;
+  }
+
+  .suffixed span {
+    font-family: var(--data);
+    font-size: 0.76rem;
+    color: var(--ink-faint);
+  }
+
+  details#v-advanced summary {
+    font-family: var(--data);
+    font-size: 0.72rem;
+    color: var(--ink-soft);
+    cursor: pointer;
+    padding: 0.3rem 0;
+  }
+
+  details#v-advanced summary:hover {
+    color: var(--accent);
+  }
+
+  .dropzone strong {
+    display: block;
+    font-family: var(--display);
+    font-size: 0.9rem;
+    color: var(--ink);
+  }
+
+  .dropzone small {
+    display: block;
+    margin-top: 0.15rem;
+    font-size: 0.72rem;
+  }
+
+  .dropzone {
+    border: 1px dashed var(--line-strong);
+    border-radius: 2px;
+    padding: 0.7rem;
+    text-align: center;
+    font-size: 0.78rem;
+    color: var(--ink-soft);
+    cursor: pointer;
+    transition: border-color 0.15s ease, background 0.15s ease;
+  }
+
+  .dropzone:hover,
+  .dropzone[data-over="true"] {
+    border-color: var(--accent);
+    background: var(--accent-wash);
+    color: var(--ink);
+  }
+
+  .dropzone input {
+    display: none;
+  }
+
+  .clipbadge {
+    display: none;
+    flex-direction: column;
+    gap: 0.35rem;
+    font-size: 0.78rem;
+    border-left: 3px solid var(--accent);
+    background: var(--surface-sunk);
+    padding: 0.55rem 0.7rem;
+  }
+
+  .clipbadge[data-active="true"] {
+    display: flex;
+  }
+
+  .clipbadge b {
+    font-family: var(--data);
+    font-size: 0.76rem;
+    word-break: break-all;
+  }
+
+  .clipbadge button {
+    align-self: flex-start;
+    font-family: var(--data);
+    font-size: 0.72rem;
+    background: none;
+    border: 1px solid var(--line);
+    border-radius: 2px;
+    padding: 0.2rem 0.45rem;
+    color: var(--ink-soft);
+    cursor: pointer;
+  }
+
+  .clipbadge button:hover {
+    border-color: var(--accent);
+    color: var(--accent);
+  }
+
+  .rail fieldset {
+    border: 0;
+    padding: 0;
+    margin: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 1.1rem;
+  }
+
+  .rail fieldset[disabled] {
+    opacity: 0.45;
+  }
+
+  .rail hr {
+    border: 0;
+    border-top: 1px solid var(--line);
+    margin: 0;
+  }
+
+  /* ---------------------------------------------------------------- */
+  /* Panels                                                            */
+  /* ---------------------------------------------------------------- */
+
+  .readout {
+    display: flex;
+    flex-direction: column;
+    gap: clamp(1rem, 2vw, 1.5rem);
+    min-width: 0;
+  }
+
+  body[data-busy="true"] .readout {
+    opacity: 0.55;
+    transition: opacity 0.2s ease;
+  }
+
+  .panel {
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: 3px;
+    box-shadow: var(--shadow);
+    overflow: hidden;
+  }
+
+  .panel > header {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 1rem;
+    padding: 0.8rem 1.1rem;
+    border-bottom: 1px solid var(--line);
+    background: var(--surface-sunk);
+  }
+
+  .panel > header h2 {
+    font-size: var(--step-0);
+    letter-spacing: 0.005em;
+  }
+
+  .panel > header .aside {
+    font-family: var(--data);
+    font-size: 0.72rem;
+    color: var(--ink-soft);
+  }
+
+  .panel .body {
+    padding: 1.1rem;
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+  }
+
+  .prose {
+    max-width: 68ch;
+    color: var(--ink-soft);
+    font-size: 0.9rem;
+  }
+
+  /* Verdict ---------------------------------------------------------- */
+
+  .verdict {
+    display: grid;
+    grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr);
+    gap: 1.4rem;
+  }
+
+  @media (max-width: 720px) {
+    .verdict {
+      grid-template-columns: minmax(0, 1fr);
+    }
+  }
+
+  .verdict .statement {
+    font-family: var(--display);
+    font-size: var(--step-2);
+    line-height: 1.22;
+    letter-spacing: -0.018em;
+    text-wrap: balance;
+  }
+
+  .verdict .reasons {
+    margin: 0.7rem 0 0;
+    padding: 0;
+    list-style: none;
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+    font-size: 0.85rem;
+    color: var(--ink-soft);
+  }
+
+  .verdict .reasons li::before {
+    content: "—";
+    color: var(--ink-faint);
+    margin-right: 0.45rem;
+  }
+
+  .scorechip {
+    display: inline-flex;
+    align-items: baseline;
+    gap: 0.4rem;
+    margin-top: 0.9rem;
+    padding: 0.3rem 0.6rem;
+    border: 1px solid var(--line);
+    border-radius: 2px;
+    background: var(--surface-sunk);
+    font-family: var(--data);
+    font-size: 0.78rem;
+    color: var(--ink-soft);
+  }
+
+  .scorechip b {
+    font-size: 1.05rem;
+    color: var(--ink);
+  }
+
+  .quality {
+    display: flex;
+    flex-direction: column;
+    gap: 0.55rem;
+  }
+
+  .quality .headline {
+    display: flex;
+    align-items: baseline;
+    gap: 0.5rem;
+  }
+
+  .quality .headline .value {
+    font-family: var(--display);
+    font-size: var(--step-3);
+    letter-spacing: -0.03em;
+    line-height: 1;
+  }
+
+  .qrow {
+    display: grid;
+    grid-template-columns: 8.5rem minmax(0, 1fr) 2.4rem;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 0.78rem;
+  }
+
+  .qrow .track {
+    height: 6px;
+    background: var(--surface-sunk);
+    border: 1px solid var(--line);
+    border-radius: 1px;
+    overflow: hidden;
+  }
+
+  .qrow .track i {
+    display: block;
+    height: 100%;
+    background: var(--accent);
+  }
+
+  .qrow .track i[data-level="warn"] {
+    background: var(--warn);
+  }
+
+  .qrow .track i[data-level="alert"] {
+    background: var(--alert);
+  }
+
+  .qrow .val {
+    text-align: right;
+    font-family: var(--data);
+    font-variant-numeric: tabular-nums;
+    color: var(--ink-soft);
+  }
+
+  /* Film ------------------------------------------------------------- */
+
+  .stage {
+    position: relative;
+    background: var(--surface-sunk);
+    border: 1px solid var(--line);
+    border-radius: 2px;
+    overflow: hidden;
+  }
+
+  .stage {
+    display: flex;
+    justify-content: center;
+    padding: 0.25rem;
+    width: max-content;
+    max-width: 100%;
+    margin: 0 auto;
+  }
+
+  .stage canvas {
+    display: block;
+    cursor: grab;
+  }
+
+  .stage canvas:active {
+    cursor: grabbing;
+  }
+
+  .stage .badge {
+    position: absolute;
+    top: 0.55rem;
+    left: 0.6rem;
+    font-family: var(--data);
+    font-size: 0.68rem;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--ink-soft);
+    background: color-mix(in srgb, var(--surface) 80%, transparent);
+    border: 1px solid var(--line);
+    padding: 0.15rem 0.4rem;
+    border-radius: 2px;
+  }
+
+  .transport {
+    display: flex;
+    align-items: center;
+    gap: 0.7rem;
+    flex-wrap: wrap;
+  }
+
+  .transport button.play {
+    font-family: var(--data);
+    font-size: 0.76rem;
+    padding: 0.35rem 0.75rem;
+    background: var(--surface-sunk);
+    color: var(--ink);
+    border: 1px solid var(--line);
+    border-radius: 2px;
+    cursor: pointer;
+  }
+
+  .transport button.play:hover {
+    border-color: var(--accent);
+    color: var(--accent);
+  }
+
+  .transport .frames {
+    font-family: var(--data);
+    font-size: 0.74rem;
+    color: var(--ink-soft);
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+  }
+
+  .transport input[type="range"] {
+    flex: 1 1 200px;
+  }
+
+  .phases {
+    display: flex;
+    width: 100%;
+    height: 26px;
+    border: 1px solid var(--line);
+    border-radius: 2px;
+    overflow: hidden;
+    font-family: var(--data);
+  }
+
+  .phases .seg {
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-right: 1px solid var(--line);
+    font-size: 0.62rem;
+    letter-spacing: 0.04em;
+    color: var(--ink-soft);
+    background: var(--surface-sunk);
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+    padding: 0 0.2rem;
+  }
+
+  .phases .seg:last-child {
+    border-right: 0;
+  }
+
+  .phases .seg[data-active="true"] {
+    background: var(--accent-wash);
+    color: var(--ink);
+  }
+
+  .legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.35rem 1.1rem;
+    font-family: var(--data);
+    font-size: 0.7rem;
+    color: var(--ink-soft);
+  }
+
+  .legend span {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+  }
+
+  .legend i {
+    width: 14px;
+    height: 0;
+    border-top-width: 2px;
+    border-top-style: solid;
+  }
+
+  /* Metrics ---------------------------------------------------------- */
+
+  .metric {
+    display: grid;
+    grid-template-columns: minmax(11rem, 1.1fr) minmax(0, 1.6fr) auto;
+    gap: 0.55rem 1rem;
+    align-items: center;
+    padding: 0.7rem 0;
+    border-bottom: 1px solid var(--line);
+  }
+
+  .metric:last-child {
+    border-bottom: 0;
+  }
+
+  @media (max-width: 720px) {
+    .metric {
+      grid-template-columns: minmax(0, 1fr);
+    }
+  }
+
+  .metric .name {
+    font-size: 0.86rem;
+    line-height: 1.3;
+  }
+
+  .metric .name small {
+    display: block;
+    font-family: var(--data);
+    font-size: 0.66rem;
+    letter-spacing: 0.07em;
+    text-transform: uppercase;
+    color: var(--ink-faint);
+    margin-top: 0.15rem;
+  }
+
+  .metric .value {
+    font-family: var(--data);
+    font-size: 0.86rem;
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+    text-align: right;
+  }
+
+  .metric.is-rejected .value,
+  .metric.is-rejected .name {
+    color: var(--ink-faint);
+  }
+
+  .bar {
+    position: relative;
+    height: 30px;
+  }
+
+  .bar .axis {
+    position: absolute;
+    left: 0;
+    right: 0;
+    top: 14px;
+    height: 1px;
+    background: var(--line);
+  }
+
+  .bar .refband {
+    position: absolute;
+    top: 5px;
+    height: 19px;
+    background: var(--accent-wash);
+    border-left: 1px solid color-mix(in srgb, var(--accent) 40%, transparent);
+    border-right: 1px solid color-mix(in srgb, var(--accent) 40%, transparent);
+  }
+
+  .bar .refmean {
+    position: absolute;
+    top: 3px;
+    height: 23px;
+    border-left: 1px dashed color-mix(in srgb, var(--accent) 65%, transparent);
+  }
+
+  .bar .interval {
+    position: absolute;
+    top: 11px;
+    height: 7px;
+    background: var(--ink-soft);
+    border-radius: 1px;
+  }
+
+  .bar .point {
+    position: absolute;
+    top: 6px;
+    width: 2px;
+    height: 17px;
+    background: var(--ink);
+  }
+
+  .bar .truth {
+    position: absolute;
+    top: 1px;
+    width: 0;
+    height: 27px;
+    border-left: 2px solid var(--truth-line);
+  }
+
+  .bar .truth::after {
+    content: "";
+    position: absolute;
+    left: -3px;
+    top: -1px;
+    width: 8px;
+    height: 4px;
+    background: var(--truth-line);
+    clip-path: polygon(0 0, 100% 0, 50% 100%);
+  }
+
+  .chip {
+    display: inline-block;
+    font-family: var(--data);
+    font-size: 0.64rem;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    padding: 0.1rem 0.35rem;
+    border-radius: 2px;
+    border: 1px solid var(--line);
+    color: var(--ink-soft);
+    background: var(--surface-sunk);
+    white-space: nowrap;
+  }
+
+  .chip[data-tone="good"] {
+    color: var(--accent);
+    border-color: color-mix(in srgb, var(--accent) 45%, transparent);
+    background: var(--accent-wash);
+  }
+
+  .chip[data-tone="warn"] {
+    color: var(--warn);
+    border-color: color-mix(in srgb, var(--warn) 45%, transparent);
+    background: var(--warn-wash);
+  }
+
+  .chip[data-tone="alert"] {
+    color: var(--alert);
+    border-color: color-mix(in srgb, var(--alert) 45%, transparent);
+    background: var(--alert-wash);
+  }
+
+  .note {
+    grid-column: 1 / -1;
+    font-size: 0.78rem;
+    color: var(--ink-soft);
+    padding-left: 0.1rem;
+  }
+
+  .note[data-tone="alert"] {
+    color: var(--alert);
+  }
+
+  .fitrow {
+    display: grid;
+    grid-template-columns: 9.5rem 8rem minmax(0, 1fr);
+    gap: 0.5rem 0.9rem;
+    align-items: baseline;
+    padding: 0.5rem 0;
+    border-bottom: 1px dotted var(--line);
+    font-size: 0.85rem;
+  }
+
+  .fitrow:last-child {
+    border-bottom: 0;
+  }
+
+  .fitrow .v {
+    font-family: var(--data);
+    font-variant-numeric: tabular-nums;
+  }
+
+  .fitrow .t {
+    color: var(--ink-soft);
+    font-size: 0.82rem;
+  }
+
+  .fitrow .dot {
+    display: inline-block;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    margin-right: 0.45rem;
+    background: var(--accent);
+  }
+
+  .fitrow[data-tone="warn"] .dot {
+    background: var(--warn);
+  }
+
+  .fitrow[data-tone="alert"] .dot {
+    background: var(--alert);
+  }
+
+  @media (max-width: 620px) {
+    .fitrow {
+      grid-template-columns: minmax(0, 1fr);
+    }
+  }
+
+  .guide {
+    margin: 0;
+    padding-left: 1.2rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    max-width: 70ch;
+    font-size: 0.9rem;
+  }
+
+  .guide b {
+    font-family: var(--display);
+    font-weight: 600;
+  }
+
+  .callout-row {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+    gap: 0.9rem;
+  }
+
+  .callout-row > div {
+    border-left: 3px solid var(--accent);
+    background: var(--surface-sunk);
+    padding: 0.7rem 0.9rem;
+  }
+
+  .callout-row > div:last-child {
+    border-left-color: var(--warn);
+  }
+
+  .callout-row ul {
+    margin: 0.4rem 0 0;
+    padding-left: 1.1rem;
+    font-size: 0.83rem;
+    color: var(--ink-soft);
+    display: flex;
+    flex-direction: column;
+    gap: 0.2rem;
+  }
+
+  /* Lists ------------------------------------------------------------ */
+
+  .stack {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+  }
+
+  .card {
+    border: 1px solid var(--line);
+    border-left: 3px solid var(--line-strong);
+    border-radius: 2px;
+    background: var(--surface-sunk);
+    padding: 0.75rem 0.9rem;
+  }
+
+  .card[data-tone="alert"] {
+    border-left-color: var(--alert);
+  }
+
+  .card[data-tone="warn"] {
+    border-left-color: var(--warn);
+  }
+
+  .card[data-tone="good"] {
+    border-left-color: var(--accent);
+  }
+
+  .card h3 {
+    font-size: 0.9rem;
+    margin-bottom: 0.35rem;
+  }
+
+  .card dl {
+    display: grid;
+    grid-template-columns: 7.5rem minmax(0, 1fr);
+    gap: 0.25rem 0.9rem;
+    margin: 0.5rem 0 0;
+    font-size: 0.84rem;
+  }
+
+  .card dt {
+    font-family: var(--data);
+    font-size: 0.66rem;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--ink-faint);
+    padding-top: 0.22rem;
+  }
+
+  .card dd {
+    margin: 0;
+    color: var(--ink-soft);
+  }
+
+  @media (max-width: 620px) {
+    .card dl {
+      grid-template-columns: minmax(0, 1fr);
+    }
+  }
+
+  /* Layer trail ------------------------------------------------------ */
+
+  .layers {
+    display: flex;
+    flex-direction: column;
+  }
+
+  .layer {
+    display: grid;
+    grid-template-columns: 2.6rem minmax(0, 1fr) 5.5rem 4.2rem;
+    gap: 0.7rem;
+    align-items: center;
+    padding: 0.5rem 0;
+    border-bottom: 1px dotted var(--line);
+    font-size: 0.83rem;
+  }
+
+  .layer:last-child {
+    border-bottom: 0;
+  }
+
+  .layer .id {
+    font-family: var(--data);
+    font-size: 0.72rem;
+    color: var(--ink-faint);
+  }
+
+  .layer .track {
+    height: 5px;
+    background: var(--surface-sunk);
+    border: 1px solid var(--line);
+    overflow: hidden;
+  }
+
+  .layer .track i {
+    display: block;
+    height: 100%;
+    background: var(--accent);
+  }
+
+  .layer .notes {
+    grid-column: 2 / -1;
+    font-size: 0.76rem;
+    color: var(--ink-soft);
+    margin-top: 0.15rem;
+  }
+
+  @media (max-width: 620px) {
+    .layer {
+      grid-template-columns: 2.2rem minmax(0, 1fr) 4rem;
+    }
+    .layer .track {
+      display: none;
+    }
+  }
+
+  /* Legacy ----------------------------------------------------------- */
+
+  .duel {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+    gap: 0.9rem;
+  }
+
+  .duel .side {
+    border: 1px solid var(--line);
+    border-radius: 2px;
+    padding: 0.85rem 0.9rem;
+    background: var(--surface-sunk);
+  }
+
+  .duel .side .big {
+    font-family: var(--display);
+    font-size: var(--step-3);
+    letter-spacing: -0.03em;
+    line-height: 1;
+    display: block;
+    margin: 0.3rem 0 0.15rem;
+  }
+
+  .duel .side.old .big {
+    color: var(--alert);
+  }
+
+  .duel .side.new .big {
+    color: var(--accent);
+  }
+
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.82rem;
+  }
+
+  thead th {
+    font-family: var(--data);
+    font-size: 0.64rem;
+    letter-spacing: 0.09em;
+    text-transform: uppercase;
+    color: var(--ink-faint);
+    text-align: right;
+    font-weight: 500;
+    padding: 0 0.5rem 0.4rem;
+    border-bottom: 1px solid var(--line);
+  }
+
+  thead th:first-child,
+  tbody td:first-child {
+    text-align: left;
+  }
+
+  tbody td {
+    padding: 0.4rem 0.5rem;
+    border-bottom: 1px dotted var(--line);
+    text-align: right;
+    font-family: var(--data);
+    font-variant-numeric: tabular-nums;
+  }
+
+  tbody td:first-child {
+    font-family: var(--body);
+  }
+
+  tbody tr:last-child td {
+    border-bottom: 0;
+  }
+
+  .scroller {
+    overflow-x: auto;
+  }
+
+  .rigbars {
+    display: flex;
+    flex-direction: column;
+    gap: 0.3rem;
+  }
+
+  .rigbar {
+    display: grid;
+    grid-template-columns: 10rem minmax(0, 1fr) 2.6rem;
+    align-items: center;
+    gap: 0.6rem;
+    font-size: 0.78rem;
+  }
+
+  .rigbar .track {
+    height: 12px;
+    background: var(--surface-sunk);
+    border: 1px solid var(--line);
+  }
+
+  .rigbar .track i {
+    display: block;
+    height: 100%;
+    background: var(--alert);
+    opacity: 0.75;
+  }
+
+  .rigbar[data-current="true"] .track i {
+    opacity: 1;
+  }
+
+  .rigbar[data-current="true"] {
+    font-weight: 600;
+  }
+
+  .rigbar .val {
+    text-align: right;
+    font-family: var(--data);
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* Session ---------------------------------------------------------- */
+
+  .dots {
+    position: relative;
+    height: 26px;
+  }
+
+  .dots .axis {
+    position: absolute;
+    left: 0;
+    right: 0;
+    top: 13px;
+    height: 1px;
+    background: var(--line);
+  }
+
+  .dots .d {
+    position: absolute;
+    top: 9px;
+    width: 9px;
+    height: 9px;
+    margin-left: -4.5px;
+    border-radius: 50%;
+    background: var(--accent-wash);
+    border: 1.5px solid var(--accent);
+  }
+
+  .dots .d[data-outlier="true"] {
+    background: var(--alert-wash);
+    border-color: var(--alert);
+  }
+
+  .dots .sem {
+    position: absolute;
+    top: 8px;
+    height: 11px;
+    background: var(--accent-wash);
+    border-left: 1px solid color-mix(in srgb, var(--accent) 45%, transparent);
+    border-right: 1px solid color-mix(in srgb, var(--accent) 45%, transparent);
+  }
+
+  .dots .m {
+    position: absolute;
+    top: 3px;
+    width: 2px;
+    height: 21px;
+    background: var(--ink);
+  }
+
+  .empty {
+    font-size: 0.86rem;
+    color: var(--ink-soft);
+    font-style: italic;
+  }
+
+  /* Why there is no overall grade: available, but not in the way. A partial
+     result is the ordinary outcome for a single serve filmed on a phone, and
+     printing its causes at full volume made every such analysis read as a
+     failure. */
+  details.whynot {
+    margin-top: 0.7rem;
+    border-left: 2px solid var(--line);
+    padding-left: 0.9rem;
+  }
+
+  details.whynot > summary {
+    cursor: pointer;
+    font-size: 0.82rem;
+    color: var(--ink-soft);
+    list-style: none;
+  }
+
+  details.whynot > summary::before {
+    content: "▸ ";
+    color: var(--ink-faint);
+  }
+
+  details[open].whynot > summary::before {
+    content: "▾ ";
+  }
+
+  details.whynot > summary::-webkit-details-marker {
+    display: none;
+  }
+
+  details.whynot p {
+    font-size: 0.82rem;
+    color: var(--ink-soft);
+    margin-top: 0.5rem;
+    max-width: 72ch;
+  }
+
+  p.nextstep {
+    margin-top: 0.9rem;
+    font-size: 0.86rem;
+    color: var(--ink);
+    background: color-mix(in srgb, var(--accent) 10%, transparent);
+    border-left: 3px solid var(--accent);
+    padding: 0.6rem 0.9rem;
+    max-width: 72ch;
+  }
+
+  p.nextstep b {
+    color: var(--accent);
+  }
+
+  /* A list item that carries a block rather than a sentence. */
+  .verdict .reasons li.bare::before {
+    content: none;
+    margin-right: 0;
+  }
+
+  footer.colophon {
+    padding: 1.5rem clamp(1rem, 3vw, 2.25rem) 3rem;
+    border-top: 1px solid var(--line);
+    color: var(--ink-soft);
+    font-size: 0.8rem;
+    max-width: 78ch;
+  }
+
+  footer.colophon code {
+    font-family: var(--data);
+    font-size: 0.76rem;
+    background: var(--surface-sunk);
+    border: 1px solid var(--line);
+    padding: 0.05rem 0.3rem;
+    border-radius: 2px;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    * {
+      animation-duration: 0.001ms !important;
+      transition-duration: 0.001ms !important;
+    }
+  }
+</style>
+
+<header class="masthead">
+  <h1>Baseline Vision</h1>
+  <p class="sub">
+    Prüfstand: Aufnahmebedingungen einstellen und beobachten, was das System daraufhin behauptet — und was
+    nicht.
+  </p>
+  <div class="spacer"></div>
+  <a
+    id="videolink"
+    href="video.html"
+    hidden
+    style="
+      font-family: var(--data);
+      font-size: 0.72rem;
+      text-decoration: none;
+      border: 1px solid var(--accent);
+      color: var(--accent);
+      padding: 0.25rem 0.5rem;
+      border-radius: 2px;
+      white-space: nowrap;
+    "
+    >Videos auswerten →</a
+  >
+  <div class="runstate"><span class="dot"></span><span id="runstate-text">bereit</span></div>
+  <div class="progress"><i id="progress-bar"></i></div>
+</header>
+
+<div class="shell">
+  <form class="rail" id="controls" autocomplete="off">
+    <div class="field" id="video-block" hidden>
+      <ol class="steps" id="steps">
+        <li data-step="1" data-state="active"><b>1</b> Video</li>
+        <li data-step="2"><b>2</b> Spieler</li>
+        <li data-step="3"><b>3</b> Treffpunkt</li>
+        <li data-step="4"><b>4</b> Ergebnis</li>
+      </ol>
+
+      <label class="dropzone" id="videozone">
+        <strong>Video auswählen</strong>
+        <small>oder hierher ziehen · MP4, MOV, WebM</small>
+        <input type="file" id="videofile" />
+      </label>
+      <div class="clipbadge" id="videobadge">
+        <b id="videoname"></b>
+        <span id="videometa"></span>
+      </div>
+
+      <div class="field" id="video-settings" hidden>
+        <div class="pair">
+          <div>
+            <label class="name" for="v-height">Körpergröße</label>
+            <div class="suffixed"><input type="number" id="v-height" min="120" max="220" step="1" value="185" /><span>cm</span></div>
+          </div>
+          <div>
+            <label class="name" for="v-hand">Schlaghand</label>
+            <select id="v-hand">
+              <option value="right">rechts</option>
+              <option value="left">links</option>
+            </select>
+          </div>
+        </div>
+
+        <button type="button" class="primary" id="v-extract">Analyse starten</button>
+        <div class="progress-line" id="v-progress" hidden><i></i></div>
+        <p class="hint" id="v-status"></p>
+
+        <details id="v-advanced">
+          <summary>Mehr Einstellungen</summary>
+          <div class="field" style="margin-top: 0.7rem">
+            <label class="name" for="v-level">Spielniveau</label>
+            <select id="v-level">
+              <option value="junior_development">Nachwuchs</option>
+              <option value="junior_national">Nachwuchs national</option>
+              <option value="college">College</option>
+              <option value="high_performance" selected>Leistungsklasse</option>
+              <option value="elite">Weltklasse</option>
+            </select>
+
+            <label class="name" for="v-range">Ausschnitt (Sekunden, leer = ganzes Video)</label>
+            <div class="pair" id="v-range">
+              <input type="number" id="v-start" min="0" step="0.1" placeholder="von" aria-label="von Sekunde" />
+              <input type="number" id="v-end" min="0" step="0.1" placeholder="bis" aria-label="bis Sekunde" />
+            </div>
+
+            <div id="v-fps-row" hidden>
+              <label class="name" for="v-fps">Gemessene Bildrate (fps)</label>
+              <input type="number" id="v-fps" min="1" max="1000" step="0.001" />
+            </div>
+
+            <label class="name" for="v-hfov">Bildwinkel (Grad)</label>
+            <input type="number" id="v-hfov" min="10" max="120" step="1" placeholder="unbekannt" />
+
+            <label class="name" for="v-capture">Aufnahmerate bei Zeitlupe (fps)</label>
+            <input type="number" id="v-capture" min="10" max="1000" step="1" placeholder="wie gemessen" />
+
+            <label class="name" for="v-model">Modell</label>
+            <select id="v-model">
+              <option value="pose_landmarker_full.task" selected>genau (9 MB)</option>
+              <option value="pose_landmarker_lite.task">schnell (5,5 MB)</option>
+            </select>
+
+            <label class="switch" style="margin-top: 0.4rem">
+              <input type="checkbox" id="v-flipdepth" />
+              <span class="text"
+                >Tiefenrichtung umkehren
+                <small>Nur nötig, wenn „Tiefenrichtung gesichert“ niedrig bleibt.</small></span
+              >
+            </label>
+          </div>
+        </details>
+      </div>
+    </div>
+
+    <div class="field" id="clip-block">
+      <span class="name">Eigenes Video</span>
+      <label class="dropzone" id="dropzone">
+        Clip-Datei hier ablegen oder klicken
+        <input type="file" id="clipfile" />
+      </label>
+      <p class="hint">
+        Erwartet wird eine <b>JSON-Datei</b> mit Gelenkpunkten, nicht das Video selbst. Um ein Video
+        direkt hineinzuziehen, starten Sie den Prüfstand lokal:
+        <code style="font-family: var(--data); font-size: 0.72rem"
+          >node --experimental-strip-types tools/fetch-models.ts</code
+        >, dann
+        <code style="font-family: var(--data); font-size: 0.72rem"
+          >tools/serve.ts</code
+        >. Die Posenschätzung ist 24 MB Modell und WebAssembly und passt nicht in diese Seite.
+      </p>
+      <div class="clipbadge" id="clipbadge">
+        <b id="clipname"></b>
+        <span id="clipdepth"></span>
+        <button type="button" id="clipclear">Zurück zur Simulation</button>
+      </div>
+    </div>
+
+    <fieldset id="synthetic">
+    <div class="field">
+      <label class="name" for="preset">Spieler</label>
+      <select id="preset" name="preset"></select>
+      <p class="hint" id="preset-hint"></p>
+    </div>
+
+    <div class="field">
+      <label class="name" for="rig">Kameraposition</label>
+      <select id="rig" name="rig"></select>
+    </div>
+
+    <div class="field">
+      <span class="name">Bildrate</span>
+      <div class="segmented" id="fps" role="group" aria-label="Bildrate"></div>
+    </div>
+
+    <div class="field">
+      <span class="name">Aufnahmequalität</span>
+      <div class="segmented" id="capture" role="group" aria-label="Aufnahmequalität"></div>
+      <p class="hint" id="capture-hint"></p>
+    </div>
+
+    <hr />
+
+    <label class="switch">
+      <input type="checkbox" id="knownFov" checked />
+      <span class="text"
+        >Brennweite bekannt
+        <small>Kameradaten einmalig erfasst statt geschätzt.</small></span
+      >
+    </label>
+
+    <label class="switch">
+      <input type="checkbox" id="learnedDepth" checked />
+      <span class="text"
+        >Tiefenmodell aktiv
+        <small>Gelernter Tiefen-Prior stützt die 3D-Rekonstruktion.</small></span
+      >
+    </label>
+
+    <label class="switch">
+      <input type="checkbox" id="occlusion" />
+      <span class="text"
+        >Beine zeitweise verdeckt
+        <small>Zaun oder Netzpfosten zwischen 0,50 s und 0,95 s.</small></span
+      >
+    </label>
+
+    <hr />
+
+    <div class="field">
+      <label class="name" for="reps">Wiederholungen: <span class="num" id="reps-value">1</span></label>
+      <input type="range" id="reps" min="1" max="6" step="1" value="1" />
+      <p class="hint">
+        Zeitmessungen zwischen Segmenten brauchen mehrere Würfe, bevor sie mit einer Population
+        verglichen werden dürfen.
+      </p>
+    </div>
+
+    <div class="field">
+      <label class="name" for="seed">Zufallssaat</label>
+      <input type="number" id="seed" min="1" max="999" step="1" value="5" />
+      <p class="hint">Gleiche Saat, gleiche Aufnahme — die Auswertung ist reproduzierbar.</p>
+    </div>
+    </fieldset>
+  </form>
+
+  <main class="readout" id="readout">
+    <section class="panel" id="guide-panel">
+      <header><h2>So funktioniert es</h2><span class="aside">vier Schritte, ein Klick pro Schritt</span></header>
+      <div class="body">
+        <ol class="guide">
+          <li>
+            <b>Video auswählen.</b> MP4, MOV oder WebM, direkt vom Handy. Die App findet den Aufschlag
+            selbst, auch in einem längeren Clip.
+          </li>
+          <li>
+            <b>Körpergröße und Schlaghand eintragen.</b> Die Größe ist der einzige Maßstab, den eine
+            einzelne Kamera hat — ohne sie gibt es keine Zentimeter.
+          </li>
+          <li>
+            <b>Treffpunkt bestätigen.</b> Die App schlägt das Bild vor, in dem der Ball die Saiten
+            trifft. Mit ◀ ▶ nachprüfen, notfalls korrigieren, dann <em>Passt — auswerten</em>.
+          </li>
+          <li>
+            <b>Bericht lesen.</b> Zuerst „Was diese Aufnahme hergibt“: Was dort rot ist, taucht unten
+            als „nicht messbar“ wieder auf. Jeder Messwert hat ein Intervall und eine Vertrauensstufe;
+            <em>niedrig</em> heißt Anhaltspunkt, nicht Messung.
+          </li>
+        </ol>
+        <div class="callout-row">
+          <div>
+            <p class="eyebrow">Gute Aufnahme</p>
+            <ul>
+              <li>120 fps oder mehr, kein Zeitlupen-Export</li>
+              <li>Spieler füllt mindestens die halbe Bildhöhe</li>
+              <li>Stativ oder aufgelegt, seitlich bis leicht diagonal</li>
+              <li>Ganze Bewegung im Bild, inklusive Landung</li>
+            </ul>
+          </div>
+          <div>
+            <p class="eyebrow">Wird wenig hergeben</p>
+            <ul>
+              <li>Bildschirmmitschnitt eines Videos (Zeitlupe, Wiederholungen)</li>
+              <li>Totale vom ganzen Platz — der Spieler ist zu klein</li>
+              <li>30 fps: reicht für Haltung, nicht für Zeitmessungen</li>
+              <li>Starker Zoom ohne Angabe des Bildwinkels</li>
+            </ul>
+          </div>
+        </div>
+        <p class="prose">
+          Das Video verlässt Ihren Rechner nicht: Posenerkennung und Auswertung laufen vollständig im
+          Browser.
+        </p>
+      </div>
+    </section>
+
+    <section class="panel">
+      <header><h2>Ergebnis</h2><span class="aside" id="verdict-aside"></span></header>
+      <div class="body">
+        <div class="verdict">
+          <div>
+            <p class="eyebrow">Aussage des Systems</p>
+            <p class="statement" id="verdict-statement">…</p>
+            <p class="prose" id="verdict-explain" style="margin-top: 0.6rem"></p>
+            <ul class="reasons" id="verdict-reasons"></ul>
+            <div id="verdict-score"></div>
+          </div>
+          <div class="quality">
+            <p class="eyebrow">Analysequalität</p>
+            <div class="headline">
+              <span class="value num" id="quality-value">–</span>
+              <span class="num" style="color: var(--ink-soft)">/ 100</span>
+            </div>
+            <div id="quality-rows"></div>
+            <div id="quality-blockers"></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="panel" id="fit-panel" hidden>
+      <header><h2>Was diese Aufnahme hergibt</h2><span class="aside" id="fit-aside"></span></header>
+      <div class="body">
+        <p class="prose">
+          Vier Eigenschaften der Aufnahme entscheiden, welche Aussagen sie tragen kann. Alle vier sind
+          gemessen, nicht angenommen. Was hier rot ist, taucht im Bericht unten als „nicht messbar“
+          wieder auf — mit derselben Begründung.
+        </p>
+        <div id="fit-rows"></div>
+      </div>
+    </section>
+
+    <section class="panel" id="mark-panel" hidden>
+      <header><h2>Treffpunkt markieren</h2><span class="aside" id="mark-aside"></span></header>
+      <div class="body">
+        <p class="prose">
+          Der Treffpunkt ist der Bezugspunkt jeder Zeitmessung, und kein Posen-Modell sieht ihn. Spulen
+          Sie auf das Bild, in dem der Ball die Saiten berührt, und setzen Sie die Marke.
+        </p>
+        <div class="stage" style="width: 100%">
+          <canvas id="mark-canvas" width="640" height="360"></canvas>
+        </div>
+        <div class="transport">
+          <button type="button" class="play" id="mark-prev">◀ Bild</button>
+          <input type="range" id="mark-frame" min="0" max="0" step="1" value="0" />
+          <button type="button" class="play" id="mark-next">Bild ▶</button>
+          <span class="frames" id="mark-label">–</span>
+        </div>
+        <div class="transport">
+          <button type="button" class="primary" id="mark-run" style="width: auto; padding: 0.5rem 1.2rem">
+            Passt — auswerten
+          </button>
+          <button type="button" class="play" id="mark-set">Treffpunkt hier setzen</button>
+          <span class="frames" id="mark-current">kein Treffpunkt gesetzt</span>
+        </div>
+      </div>
+    </section>
+
+    <section class="panel" id="clip-panel" hidden>
+      <header><h2>Zur eingelesenen Datei</h2><span class="aside" id="clip-aside"></span></header>
+      <div class="body"><div class="stack" id="clip-warnings"></div></div>
+    </section>
+
+    <section class="panel">
+      <header>
+        <h2>Aufnahme und Rekonstruktion</h2>
+        <span class="aside" id="stage-aside"></span>
+      </header>
+      <div class="body">
+        <div class="stage">
+          <canvas id="stage" width="960" height="540"></canvas>
+          <span class="badge" id="stage-badge">Bildebene</span>
+        </div>
+        <div class="transport">
+          <button type="button" class="play" id="play">Abspielen</button>
+          <input type="range" id="frame" min="0" max="0" step="1" value="0" />
+          <span class="frames" id="frame-label">–</span>
+          <div class="segmented" id="view" role="group" aria-label="Ansicht" style="flex: 0 0 150px">
+            <button type="button" data-value="2d" aria-pressed="true">Bildebene</button>
+            <button type="button" data-value="3d" aria-pressed="false">3D</button>
+          </div>
+        </div>
+        <div class="phases" id="phases"></div>
+        <p class="eyebrow" id="phase-label" style="margin-top: -0.5rem"></p>
+        <div class="legend">
+          <span><i style="border-color: var(--ink-faint); border-top-style: dashed"></i>2D-Detektion</span>
+          <span><i style="border-color: var(--accent)"></i>3D-Rekonstruktion, zurückprojiziert</span>
+          <span><i style="border-color: var(--truth-line)"></i>Schläger und Ball</span>
+        </div>
+      </div>
+    </section>
+
+    <section class="panel">
+      <header>
+        <h2>Messwerte</h2>
+        <span class="aside">Intervall = 95 %, Marke = wahrer Wert des Modells</span>
+      </header>
+      <div class="body">
+        <p class="prose">
+          Der Balken zeigt das Konfidenzintervall, der senkrechte Strich den Schätzwert, das getönte Feld
+          die Referenzspanne der Vergleichsgruppe. Die gelbgrüne Marke ist der Wert, den die simulierte
+          Bewegung tatsächlich hat — den kennt nur der Prüfstand, nicht die Pipeline.
+        </p>
+        <div id="metrics"></div>
+      </div>
+    </section>
+
+    <section class="panel">
+      <header><h2>Nicht messbar</h2><span class="aside" id="notmeasurable-aside"></span></header>
+      <div class="body"><div class="stack" id="notmeasurable"></div></div>
+    </section>
+
+    <section class="panel">
+      <header><h2>Befunde</h2><span class="aside">Beobachtung → Deutung → Konsequenz → Vorschlag</span></header>
+      <div class="body"><div class="stack" id="findings"></div></div>
+    </section>
+
+    <section class="panel" id="session-panel" hidden>
+      <header><h2>Sitzung</h2><span class="aside" id="session-aside"></span></header>
+      <div class="body">
+        <div id="session-notes" class="stack"></div>
+        <p class="prose">
+          Ein Punkt je Wurf, auf einer Skala, die sich nach der Messunsicherheit richtet — nicht nach der
+          Streuung der Werte. Wer konstant aufschlägt, sieht seine Punkte beieinanderliegen. Das getönte
+          Feld ist die Unsicherheit des Mittelwerts: Sie schrumpft mit der Wurfzahl nur so weit, wie der
+          systematische Anteil des Verfahrens es zulässt.
+        </p>
+        <div id="session-aggregates"></div>
+      </div>
+    </section>
+
+    <section class="panel" id="legacy-panel">
+      <header>
+        <h2>Altes Verfahren auf derselben Aufnahme</h2>
+        <span class="aside">Baseline Pro, zwei Bilder, vier Winkel</span>
+      </header>
+      <div class="body">
+        <div class="duel">
+          <div class="side old">
+            <p class="eyebrow">Altes 2D-Verfahren</p>
+            <span class="big num" id="legacy-score">–</span>
+            <p class="hint" style="font-size: 0.78rem; color: var(--ink-soft)">von 10 Ähnlichkeitspunkten</p>
+          </div>
+          <div class="side new">
+            <p class="eyebrow">Diese Pipeline</p>
+            <span class="big num" id="new-score">–</span>
+            <p class="hint" style="font-size: 0.78rem; color: var(--ink-soft)" id="new-score-note"></p>
+          </div>
+        </div>
+        <p class="prose">
+          Das alte Verfahren bekommt hier perfekte Eingaben: exakte Gelenkpositionen, die richtigen
+          Schlüsselbilder, kein Klickfehler. Es misst Winkel in der Bildebene und vergleicht sie mit
+          Referenzwerten aus 3D-Laborkinematik — zwei verschiedene Größen.
+        </p>
+        <div class="scroller">
+          <table>
+            <thead>
+              <tr>
+                <th>Winkel</th>
+                <th>im Bild gemessen</th>
+                <th>tatsächlich (3D)</th>
+                <th>Fehler</th>
+                <th>Referenz</th>
+                <th>z</th>
+                <th>Punkte</th>
+              </tr>
+            </thead>
+            <tbody id="legacy-rows"></tbody>
+          </table>
+        </div>
+        <p class="eyebrow">Dieselbe Bewegung, andere Kamera</p>
+        <div class="rigbars" id="legacy-rigs"></div>
+      </div>
+    </section>
+
+    <section class="panel">
+      <header><h2>Pipeline</h2><span class="aside" id="pipeline-aside"></span></header>
+      <div class="body">
+        <div class="layers" id="layers"></div>
+        <div id="issues" class="stack"></div>
+      </div>
+    </section>
+
+    <section class="panel" id="truth-panel">
+      <header><h2>Prüfstands-Kontrolle</h2><span class="aside">nur im Prüfstand verfügbar</span></header>
+      <div class="body">
+        <p class="prose">
+          Die Bewegung stammt aus einem physikalisch konsistenten Modell, dessen wahre Werte bekannt sind.
+          Damit lässt sich prüfen, ob die Pipeline nicht nur plausible Zahlen liefert, sondern richtige —
+          und ob ihre Unsicherheitsangaben halten, was sie versprechen.
+        </p>
+        <div class="scroller">
+          <table>
+            <thead>
+              <tr>
+                <th>Kenngröße</th>
+                <th>wahr</th>
+                <th>gemessen</th>
+                <th>Fehler</th>
+                <th>|Fehler| / σ</th>
+                <th>im Intervall</th>
+              </tr>
+            </thead>
+            <tbody id="truth-rows"></tbody>
+          </table>
+        </div>
+        <div class="qrow" style="grid-template-columns: 14rem minmax(0, 1fr) 5rem">
+          <span>Gelenkfehler der Rekonstruktion</span>
+          <span class="track"><i id="mpjpe-bar"></i></span>
+          <span class="val" id="mpjpe-value">–</span>
+        </div>
+        <div class="qrow" style="grid-template-columns: 14rem minmax(0, 1fr) 5rem">
+          <span>Vertikale bestimmt</span>
+          <span class="track"><i id="vert-bar"></i></span>
+          <span class="val" id="vert-value">–</span>
+        </div>
+        <div class="qrow" style="grid-template-columns: 14rem minmax(0, 1fr) 5rem">
+          <span>Seitigkeit gesichert</span>
+          <span class="track"><i id="mirror-bar"></i></span>
+          <span class="val" id="mirror-value">–</span>
+        </div>
+      </div>
+    </section>
+  </main>
+</div>
+
+<footer class="colophon">
+  <p>
+    Alles auf dieser Seite wird beim Klick berechnet: die Aufnahme wird aus einem Bewegungsmodell
+    gerendert, durch dieselben vierzehn Schichten geschickt, die auch die Testsuite durchläuft, und das
+    Ergebnis unverändert angezeigt. Es gibt keine vorbereiteten Ergebnisse und keinen Server —
+    <code>engine/playground/entry.ts</code> ruft <code>analyse()</code> direkt auf.
+  </p>
+  <p style="margin-top: 0.6rem">
+    Die Bewegung ist simuliert, nicht gefilmt. Der Prüfstand zeigt damit, wie sich das System unter
+    bekannten Bedingungen verhält — nicht, wie gut ein realer Pose-Schätzer auf realem Videomaterial
+    arbeitet.
+  </p>
+</footer>
+
+<script id="engine-source">
+<!--ENGINE-->
+</script>
+
+<script>
+<!--APP-->
+</script>

@@ -1,0 +1,13 @@
+{
+  "name": "motus",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Bewegungsanalyse aus einem Video. Laeuft vollstaendig im Browser.",
+  "scripts": {
+    "test": "node --test \"test/*.test.js\"",
+    "build": "node build.mjs",
+    "serve": "node serve.mjs"
+  },
+  "engines": { "node": ">=22" }
+}

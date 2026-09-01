@@ -1,0 +1,157 @@
+<style>
+  :root {
+    --ground: #0a0f11;
+    --surface: #141a1d;
+    --line: #232d32;
+    --ink: #eef3f4;
+    --ink-soft: #9aabb2;
+    --ink-faint: #61737a;
+    --accent: #4dbdb4;
+    --alert: #e2766a;
+    --ball: #c9dd3c;
+    --display: Archivo, "Helvetica Neue", Arial, sans-serif;
+    --data: PlexMono, ui-monospace, monospace;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  html, body {
+    width: 1920px; height: 1080px;
+    background: var(--ground); color: var(--ink);
+    font-family: var(--display); overflow: hidden;
+  }
+
+  #stage { position: relative; width: 1920px; height: 1080px; }
+  canvas#film { position: absolute; inset: 0; }
+  .layer { position: absolute; inset: 0; opacity: 0; }
+
+  .eyebrow {
+    font-family: var(--data); font-size: 21px; font-weight: 500;
+    letter-spacing: 0.24em; text-transform: uppercase; color: var(--accent);
+  }
+  .rule { height: 2px; background: var(--accent); width: 0; }
+  .headline {
+    font-family: var(--display); font-weight: 700; letter-spacing: -0.032em;
+    line-height: 1.03;
+  }
+  .sub { color: var(--ink-soft); line-height: 1.42; font-weight: 600; letter-spacing: -0.008em; }
+
+  /* --- 1 · the court ---------------------------------------------- */
+  #s-court { }
+  #s-court .box { position: absolute; left: 130px; bottom: 118px; }
+  #s-court .headline { font-size: 104px; max-width: 1180px; }
+
+  /* --- 2 · the phone ---------------------------------------------- */
+  #s-phone .box { position: absolute; left: 130px; top: 130px; width: 620px; }
+  #s-phone .headline { font-size: 66px; margin-top: 26px; }
+  #s-phone .sub { font-size: 30px; margin-top: 26px; }
+  #s-phone .foot {
+    position: absolute; left: 130px; bottom: 130px; width: 620px;
+    font-family: var(--data); font-size: 23px; color: var(--ink-faint); line-height: 1.7;
+  }
+
+  /* --- 3-5 · inside the app --------------------------------------- */
+  .stepcol { position: absolute; left: 118px; top: 260px; width: 400px; }
+  .stepcol .headline { font-size: 54px; margin-top: 22px; }
+  .stepcol .sub { font-size: 25px; margin-top: 26px; }
+  .stepcol .rule { margin: 24px 0 0; }
+  .pill {
+    position: absolute; left: 118px; top: 700px;
+    font-family: var(--data); font-size: 22px; color: var(--ink-faint);
+    border-left: 3px solid var(--line); padding-left: 18px; line-height: 1.65;
+    width: 400px;
+  }
+
+  /* --- 6 · the refusal -------------------------------------------- */
+  #s-refuse { display: flex; flex-direction: column; justify-content: center; padding: 0 190px; gap: 40px; }
+  #s-refuse .card {
+    background: var(--surface); border: 1px solid var(--line);
+    border-left: 5px solid var(--alert); padding: 54px 64px;
+  }
+  #s-refuse .card h3 { font-size: 62px; font-weight: 700; letter-spacing: -0.028em; }
+  #s-refuse .card ul { list-style: none; margin-top: 30px; display: flex; flex-direction: column; gap: 14px; }
+  #s-refuse .card li { font-family: var(--data); font-size: 27px; color: var(--ink-soft); }
+  #s-refuse .card li::before { content: "— "; color: var(--ink-faint); }
+  #s-refuse .sub { font-size: 38px; }
+
+  /* --- 7 · lockup -------------------------------------------------- */
+  #s-lockup { display: flex; flex-direction: column; justify-content: center; padding: 0 170px; gap: 30px; }
+  #s-lockup .wordmark { font-family: var(--display); font-weight: 700; font-size: 96px; letter-spacing: -0.045em; color: var(--ink-soft); }
+  #s-lockup .wordmark span { color: var(--accent); }
+  #s-lockup .claim { font-family: var(--display); font-weight: 700; font-size: 148px; letter-spacing: -0.05em; line-height: 1; }
+  #s-lockup .claim em { font-style: normal; color: var(--accent); }
+  #s-lockup .under { font-size: 40px; color: var(--ink-soft); font-weight: 600; letter-spacing: -0.012em; }
+  #s-lockup .foot { font-family: var(--data); font-size: 25px; color: var(--ink-faint); letter-spacing: 0.05em; margin-top: 16px; }
+</style>
+
+<div id="stage">
+  <canvas id="film" width="1920" height="1080"></canvas>
+
+  <div class="layer" id="s-court">
+    <div class="box">
+      <p class="eyebrow">Aufschlag · 0,9 Sekunden</p>
+      <div class="rule" id="court-rule" style="margin:24px 0 28px;"></div>
+      <h1 class="headline" id="court-head">Was in dieser Sekunde<br />passiert, sieht<br />kein Auge.</h1>
+    </div>
+  </div>
+
+  <div class="layer" id="s-phone">
+    <div class="box">
+      <p class="eyebrow">Aufgenommen mit dem, was Sie dabei haben</p>
+      <h2 class="headline">Ihr Handy hat<br />es trotzdem<br />gesehen.</h2>
+      <p class="sub">Ein Video quer gefilmt. Kein Labor, keine Sensoren, kein Anzug mit Markern.</p>
+    </div>
+    <p class="foot" id="phone-foot">1920 × 1080 · 60 fps<br />aus etwa acht Metern, seitlich</p>
+  </div>
+
+  <div class="layer" id="s-app1">
+    <div class="stepcol">
+      <p class="eyebrow">Schritt 1 — Sehen</p>
+      <h2 class="headline">Der Körper,<br />Bild für Bild.</h2>
+      <div class="rule" style="width:150px;"></div>
+      <p class="sub">Die App sucht 22 Punkte am Körper und verfolgt sie durch die ganze Bewegung — auch dann, wenn Zuschauer im Bild sind.</p>
+    </div>
+    <p class="pill" id="app1-pill">Läuft auf Ihrem Gerät.<br />Das Video wird nirgends hochgeladen.</p>
+  </div>
+
+  <div class="layer" id="s-app2">
+    <div class="stepcol">
+      <p class="eyebrow">Schritt 2 — Messen</p>
+      <h2 class="headline">Eine Zahl,<br />und ihre<br />Spannweite.</h2>
+      <div class="rule" style="width:150px;"></div>
+      <p class="sub">{{WERT}}. Das ± ist kein Schönheitsfehler. Es ist die halbe Auskunft.</p>
+    </div>
+    <p class="pill" id="app2-pill">Balken: das 95-%-Intervall.<br />Strich: der Schätzwert darin.</p>
+  </div>
+
+  <div class="layer" id="s-app3">
+    <div class="stepcol">
+      <p class="eyebrow">Schritt 3 — Einordnen</p>
+      <h2 class="headline">Erst prüft sie<br />sich selbst.</h2>
+      <div class="rule" style="width:150px;"></div>
+      <p class="sub">Wie gut war diese Aufnahme überhaupt? {{QUALITAET}} von 100 — das steht ganz oben, vor jedem Satz über Ihren Aufschlag.</p>
+    </div>
+    <p class="pill" id="app3-pill">{{BELASTBAR}} Kenngrößen tragen<br />in diesem Video eine Aussage.</p>
+  </div>
+
+  <div class="layer" id="s-refuse">
+    <p class="eyebrow">Und wenn das Video es nicht hergibt</p>
+    <div class="card">
+      <h3>Diese Aufnahme trägt keine Bewertung.</h3>
+      <ul>
+        <li>Bildfolge 18 Hz — zu grob für Zeitmessungen</li>
+        <li>Tiefenrichtung nicht gesichert — kein Winkel wird zitiert</li>
+        <li>0 von 14 Kenngrößen belastbar genug</li>
+      </ul>
+    </div>
+    <p class="sub">Ein Werkzeug, das auch Nein sagen kann.</p>
+  </div>
+
+  <div class="layer" id="s-lockup">
+    <div class="wordmark">Baseline<span>&nbsp;Vision</span></div>
+    <h2 class="claim" id="lockup-claim">Messen statt <em>raten</em>.</h2>
+    <div class="rule" id="lockup-rule"></div>
+    <p class="under" id="lockup-under">Aufschlaganalyse aus einem einzigen Handyvideo.</p>
+    <p class="foot" id="lockup-foot">Läuft im Browser · Ihr Video verlässt Ihr Gerät nicht</p>
+  </div>
+</div>

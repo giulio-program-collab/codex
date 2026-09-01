@@ -1,0 +1,321 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>MOTUS — Bewegung, in Zahlen</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 32 32%27%3E%3Crect width=%2732%27 height=%2732%27 rx=%277%27 fill=%27%230b1113%27/%3E%3Cpath d=%27M7 23V9l9 8 9-8v14%27 fill=%27none%27 stroke=%27%235ad6c8%27 stroke-width=%273%27 stroke-linejoin=%27round%27 stroke-linecap=%27round%27/%3E%3C/svg%3E" />
+<style>
+  :root {
+    --bg: #0b1113;
+    --panel: #131b1e;
+    --line: #232f34;
+    --ink: #e8eef0;
+    --soft: #93a5ac;
+    --faint: #62737a;
+    --accent: #5ad6c8;
+    --mark: #c9dd3c;
+    --warn: #e8a44c;
+    --sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    --mono: ui-monospace, SFMono-Regular, Menlo, monospace;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html { color-scheme: dark; }
+  body {
+    background: var(--bg); color: var(--ink); font-family: var(--sans);
+    line-height: 1.5; -webkit-font-smoothing: antialiased;
+  }
+  [hidden] { display: none !important; }
+
+  header.top {
+    display: flex; align-items: baseline; gap: 1rem; flex-wrap: wrap;
+    padding: 1.4rem clamp(1rem, 4vw, 2.5rem) 1.1rem;
+    border-bottom: 1px solid var(--line);
+  }
+  .wordmark { font-size: 1.45rem; font-weight: 700; letter-spacing: 0.14em; }
+  .wordmark span { color: var(--accent); }
+  .tagline { color: var(--soft); font-size: 0.92rem; }
+  .privacy {
+    margin-left: auto; font-family: var(--mono); font-size: 0.75rem;
+    color: var(--faint); border: 1px solid var(--line); border-radius: 99px;
+    padding: 0.25rem 0.75rem;
+  }
+
+  main { padding: clamp(1rem, 4vw, 2.5rem); max-width: 1400px; margin: 0 auto; }
+
+  /* --- Einstieg ------------------------------------------------- */
+  #drop {
+    border: 1.5px dashed var(--line); border-radius: 14px;
+    padding: clamp(2.5rem, 9vw, 5rem) 2rem; text-align: center;
+    cursor: pointer; transition: border-color .15s, background .15s;
+  }
+  #drop:hover, #drop[data-hot="true"] { border-color: var(--accent); background: #101a1c; }
+  #drop h1 { font-size: clamp(1.4rem, 4vw, 2.1rem); font-weight: 700; letter-spacing: -0.02em; }
+  #drop p { color: var(--soft); margin-top: 0.6rem; max-width: 52ch; margin-inline: auto; }
+  #drop .hint { font-family: var(--mono); font-size: 0.78rem; color: var(--faint); margin-top: 1.4rem; }
+  input[type=file] { display: none; }
+
+  .steps { display: grid; gap: 1px; background: var(--line); border: 1px solid var(--line);
+           border-radius: 12px; overflow: hidden; margin-top: 2rem;
+           grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); }
+  .steps div { background: var(--panel); padding: 1rem 1.1rem; }
+  .steps b { display: block; font-family: var(--mono); font-size: 0.72rem;
+             letter-spacing: 0.16em; color: var(--accent); margin-bottom: 0.35rem; }
+  .steps p { font-size: 0.86rem; color: var(--soft); }
+
+  /* --- Arbeit --------------------------------------------------- */
+  #working { text-align: center; padding: 4rem 1rem; }
+  #status { color: var(--soft); min-height: 3rem; max-width: 60ch; margin: 0 auto 1.5rem; }
+  .track { height: 6px; background: var(--line); border-radius: 99px; overflow: hidden;
+           max-width: 460px; margin: 0 auto; }
+  #bar { height: 100%; width: 0; background: var(--accent); transition: width .12s linear; }
+  #count { font-family: var(--mono); font-size: 0.8rem; color: var(--faint); margin-top: 0.8rem; }
+
+  button {
+    font: inherit; font-size: 0.88rem; color: var(--ink); background: var(--panel);
+    border: 1px solid var(--line); border-radius: 8px; padding: 0.5rem 1rem; cursor: pointer;
+  }
+  button:hover { border-color: var(--accent); }
+  button.primary { background: var(--accent); color: #06110f; border-color: var(--accent); font-weight: 600; }
+
+  /* --- Ergebnis ------------------------------------------------- */
+  .grid { display: grid; gap: 1.2rem; grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr); }
+  @media (max-width: 980px) { .grid { grid-template-columns: minmax(0, 1fr); } }
+
+  .panel { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; overflow: hidden; }
+  .panel > h2 { font-size: 0.82rem; font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase;
+                color: var(--soft); padding: 0.85rem 1.1rem; border-bottom: 1px solid var(--line); }
+  .panel > .body { padding: 1.1rem; }
+
+  #stage { position: relative; background: #000; aspect-ratio: 16/9; }
+  #stage .player { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; }
+  #stage .overlay { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
+  .transport { display: flex; align-items: center; gap: 0.8rem; padding: 0.7rem 1.1rem;
+               border-top: 1px solid var(--line); }
+  #time { font-family: var(--mono); font-size: 0.82rem; color: var(--soft); }
+  #counted-on { margin-left: auto; font-size: 0.82rem; color: var(--soft); text-align: right; }
+
+  .keys { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 1px;
+          background: var(--line); border-top: 1px solid var(--line); }
+  .keys div { background: var(--panel); padding: 0.85rem 1.1rem; }
+  .keys b { display: block; font-size: 1.6rem; font-weight: 700; letter-spacing: -0.02em; }
+  .keys span { font-family: var(--mono); font-size: 0.7rem; letter-spacing: 0.12em;
+               text-transform: uppercase; color: var(--faint); }
+
+  select { font: inherit; font-size: 0.85rem; background: var(--bg); color: var(--ink);
+           border: 1px solid var(--line); border-radius: 7px; padding: 0.4rem 0.6rem; width: 100%; }
+  #chart { width: 100%; height: 260px; display: block; cursor: crosshair; margin-top: 0.8rem; }
+
+  table { width: 100%; border-collapse: collapse; font-size: 0.86rem; }
+  th { text-align: left; font-weight: 500; color: var(--faint); font-size: 0.72rem;
+       letter-spacing: 0.1em; text-transform: uppercase; padding: 0 0.5rem 0.5rem; }
+  th.num, td.num { text-align: right; font-family: var(--mono); }
+  td { padding: 0.5rem; border-top: 1px solid var(--line); vertical-align: top; }
+  td small { display: block; color: var(--warn); font-size: 0.72rem; font-family: var(--mono); }
+  td.strong { color: var(--ink); font-weight: 600; }
+  tr[data-reliable="false"] td { color: var(--faint); }
+  #reps tr { cursor: pointer; }
+  #reps tr:hover td { background: #182226; }
+  .down { color: var(--warn); }
+  .up { color: var(--accent); }
+
+  .caveat { border-left: 3px solid var(--warn); padding: 0.1rem 0 0.1rem 0.9rem; margin-bottom: 1rem; }
+  .caveat p { font-size: 0.86rem; }
+  .caveat .remedy { color: var(--soft); font-size: 0.82rem; margin-top: 0.25rem; }
+  .caveat .remedy::before { content: "→ "; color: var(--accent); }
+  .good { font-size: 0.86rem; color: var(--soft); }
+  .good em { color: var(--ink); font-style: normal; font-weight: 600; }
+  ul.checks { list-style: none; margin: 0.7rem 0 1rem; display: grid; gap: 0.35rem; }
+  ul.checks li { font-size: 0.85rem; color: var(--soft); padding-left: 1.3rem; position: relative; }
+  ul.checks li::before { content: "\2713"; position: absolute; left: 0; color: var(--accent); }
+  #rep-summary { font-size: 0.85rem; color: var(--soft); margin-bottom: 0.9rem; }
+
+  .actions { display: flex; gap: 0.6rem; flex-wrap: wrap; margin-top: 1.4rem; }
+  .blocked { border: 1px solid var(--warn); border-radius: 14px; padding: 2rem clamp(1.2rem, 4vw, 2.5rem); }
+  .blocked h1 { font-size: clamp(1.3rem, 3.5vw, 1.9rem); font-weight: 700; letter-spacing: -0.02em; }
+  .blocked p { color: var(--soft); margin-top: 0.9rem; max-width: 62ch; font-size: 0.92rem; }
+  .blocked b { color: var(--ink); }
+  .blocked code { font-family: var(--mono); font-size: 0.88em; color: var(--accent); }
+  .blocked pre { font-family: var(--mono); font-size: 0.86rem; background: var(--bg);
+                 border: 1px solid var(--line); border-radius: 8px; padding: 0.7rem 1rem;
+                 margin-top: 0.7rem; overflow-x: auto; color: var(--ink); }
+
+  #error { max-width: 60ch; margin: 4rem auto; text-align: center; }
+  #error h2 { font-size: 1.3rem; margin-bottom: 0.7rem; }
+  #error-text { color: var(--soft); margin-bottom: 1.5rem; }
+  footer { color: var(--faint); font-size: 0.78rem; padding: 2.5rem clamp(1rem,4vw,2.5rem);
+           border-top: 1px solid var(--line); margin-top: 3rem; max-width: 70ch; }
+</style>
+</head>
+<body>
+
+<header class="top">
+  <div class="wordmark">MO<span>TUS</span></div>
+  <div class="tagline">Bewegung, in Zahlen.</div>
+  <div class="privacy">läuft auf diesem Gerät · kein Upload</div>
+</header>
+
+<main>
+  <!-- ---------------- Einstieg ---------------- -->
+  <section id="intro">
+    <div id="drop" tabindex="0" role="button" aria-label="Video auswählen">
+      <h1>Video hierher ziehen</h1>
+      <p>Eine Person, seitlich oder schräg gefilmt, die eine Bewegung mehrfach ausführt.
+         Kniebeugen, Curls, Aufschläge, Sprünge — MOTUS weiß nicht, welche Sportart es sieht,
+         und braucht es auch nicht zu wissen.</p>
+      <p class="hint">MP4 · MOV · WebM &nbsp;·&nbsp; das Video verlässt Ihr Gerät nicht</p>
+    </div>
+    <input type="file" id="file" accept="video/*" />
+
+    <div class="steps">
+      <div><b>Schritt 1</b><p>Das Video wird Bild für Bild durchgespult — kein Bild wird übersprungen.</p></div>
+      <div><b>Schritt 2</b><p>In jedem Bild sucht ein Modell 33 Punkte am Körper, in 3D.</p></div>
+      <div><b>Schritt 3</b><p>Ausreißer fliegen raus, kurze Lücken werden überbrückt, der Rest geglättet.</p></div>
+      <div><b>Schritt 4</b><p>Aus den Punkten werden Gelenkwinkel — im Raum, nicht im Bild.</p></div>
+      <div><b>Schritt 5</b><p>Wiederholungen findet MOTUS selbst, ohne zu wissen, was Sie üben.</p></div>
+      <div><b>Schritt 6</b><p>Zahlen, Verlauf und das, worauf man sich hier nicht verlassen sollte.</p></div>
+    </div>
+  </section>
+
+  <!-- ---------------- Arbeit ---------------- -->
+  <section id="working" hidden>
+    <p id="status">…</p>
+    <div class="track"><div id="bar"></div></div>
+    <p id="count"></p>
+    <div class="actions" style="justify-content:center">
+      <button id="cancel">Abbrechen</button>
+    </div>
+  </section>
+
+  <!-- ---------------- Ergebnis ---------------- -->
+  <section id="result" hidden>
+    <div class="grid">
+      <div class="panel">
+        <div id="stage"></div>
+        <div class="transport">
+          <button id="play">Abspielen</button>
+          <span id="time">0.00 s</span>
+          <span id="counted-on"></span>
+        </div>
+        <div class="keys">
+          <div><span>Wiederholungen</span><b id="k-reps">—</b></div>
+          <div><span>je Wiederholung</span><b id="k-duration">—</b></div>
+          <div><span>ausgewertet</span><b id="k-frames" style="font-size:1rem">—</b></div>
+          <div><span>Datei</span><b id="k-source" style="font-size:0.85rem; overflow-wrap:anywhere">—</b></div>
+        </div>
+      </div>
+
+      <div class="panel">
+        <h2>Verlauf</h2>
+        <div class="body">
+          <select id="series" aria-label="Gelenk auswählen"></select>
+          <canvas id="chart" width="900" height="260"></canvas>
+        </div>
+      </div>
+    </div>
+
+    <div class="grid" style="margin-top:1.2rem">
+      <div class="panel">
+        <h2>Gelenke</h2>
+        <div class="body">
+          <table>
+            <thead><tr>
+              <th>Gelenk</th><th class="num">min</th><th class="num">max</th>
+              <th class="num">Spannweite</th><th class="num">Streuung</th><th class="num">Trend</th>
+            </tr></thead>
+            <tbody id="joints"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="panel" id="reps-panel">
+        <h2>Wiederholungen</h2>
+        <div class="body">
+          <p id="rep-summary"></p>
+          <table>
+            <thead><tr>
+              <th class="num">#</th><th class="num">ab</th><th class="num">Dauer</th>
+              <th class="num">Extremwert</th><th class="num">Amplitude</th>
+            </tr></thead>
+            <tbody id="reps"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <div class="panel" style="margin-top:1.2rem">
+      <h2>Worauf man sich hier nicht verlassen sollte</h2>
+      <div class="body" id="caveats"></div>
+    </div>
+
+    <div class="actions">
+      <button class="primary" id="again">Anderes Video</button>
+      <button id="csv">Winkel als CSV</button>
+      <button id="json">Bericht als JSON</button>
+    </div>
+  </section>
+
+  <!-- ---------------- Fehler ---------------- -->
+  <section id="error" hidden>
+    <h2>Das hat nicht geklappt</h2>
+    <p id="error-text"></p>
+    <button class="primary" id="again2" onclick="document.getElementById('file').click()">Anderes Video wählen</button>
+  </section>
+</main>
+
+<footer>
+  MOTUS misst und zählt. Es benotet nicht und vergleicht nicht mit einer Referenzgruppe:
+  Ob 92° Kniebeugung gut sind, hängt von der Übung, vom Körperbau und von der Absicht ab —
+  das weiß der Mensch vor dem Bildschirm und nicht das Programm.
+</footer>
+
+<!--
+  Ein gewöhnliches Skript, kein Modul — es muss auch dann laufen, wenn das
+  Modul daneben es nicht tut.
+
+  Diese Datei ist die Entwicklerfassung und braucht einen Server: Browser laden
+  ES-Module nicht aus `file://`. Wer sie doppelklickt, bekam bisher eine Seite,
+  auf der die Schaltflächen nichts tun und in der Konsole ein CORS-Fehler steht,
+  den niemand sucht, der einfach ein Video ansehen wollte. Jetzt sagt sie es.
+-->
+<script>
+  // Der Bauvorgang übernimmt diesen Block in motus.html — und die wird
+  // ausdrücklich aus `file://` geöffnet. Der Hinweis darf dort also nicht
+  // erscheinen. Entschieden wird deshalb nicht am Protokoll allein, sondern
+  // daran, ob Modell und Laufzeit schon in der Seite stecken.
+  //
+  // Und geprüft wird das *im* DOMContentLoaded, nicht davor: Beim Ausführen
+  // dieses Skripts ist der Rest der Seite noch nicht geparst, und in motus.html
+  // steht der eingebettete Block weiter unten. Vorher gefragt, lautet die
+  // Antwort in beiden Fassungen „nicht da".
+  document.addEventListener("DOMContentLoaded", () => {
+    const eingebettet = document.getElementById("motus-assets") !== null;
+    if (location.protocol !== "file:" || eingebettet) return;
+    document.getElementById("drop").outerHTML = `
+        <div class="blocked">
+          <h1>Diese Datei braucht einen Server</h1>
+          <p><code>index.html</code> ist die Entwicklerfassung. Browser laden aus einem
+             geöffneten Ordner keine Programm-Module — das ist eine Sicherheitsregel des
+             Browsers, kein Fehler von MOTUS.</p>
+          <p><b>Zum Doppelklicken gibt es <code>motus.html</code></b> — eine einzige Datei,
+             in der alles steckt. Falls sie fehlt, einmal bauen:</p>
+          <pre>node build.mjs</pre>
+          <p>Oder die Entwicklerfassung mit Server starten:</p>
+          <pre>npm run serve   →   http://localhost:8100/</pre>
+        </div>`;
+  });
+</script>
+<script type="module">
+  import { start } from "./src/app.js";
+  // Gegen die Adresse der *Seite* aufgelöst, nicht gegen die des Moduls, das
+  // sie später importiert: ein `import("./vendor/…")` innerhalb von src/ würde
+  // sonst in src/vendor/ suchen.
+  const asset = (p) => new URL(p, document.baseURI).href;
+  start({
+    visionBundle: asset("vendor/vision_bundle.mjs"),
+    wasmDir: asset("vendor"),
+    modelPath: asset("vendor/pose_landmarker_lite.task"),
+  });
+</script>
+</body>
+</html>

@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Baseline Vision — Trainer-Dashboard</title>
+<meta name="color-scheme" content="dark">
+<style>
+  :root {
+    --bg: #17110E;
+    --surface: #1E1714;
+    --raise: #262019;
+    --border: #392E26;
+    --border-soft: #2A221C;
+    --text: #F4E3D6;
+    --text70: rgba(244, 227, 214, .70);
+    --text45: rgba(244, 227, 214, .45);
+    --clay: #C1734F;
+    --straw: #D8A657;
+    --jade: #6FA57C;
+    --rose: #C7304C;
+    --mono: ui-monospace, SFMono-Regular, Menlo, monospace;
+    --sans: 'Instrument Sans', system-ui, -apple-system, sans-serif;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; background: var(--bg); color: var(--text); font-family: var(--sans); }
+  body { display: flex; min-height: 100vh; -webkit-font-smoothing: antialiased; }
+
+  .rail {
+    width: 232px; flex: 0 0 232px; background: var(--surface);
+    border-right: 1px solid var(--border); padding: 20px 14px; position: sticky; top: 0;
+    height: 100vh; overflow-y: auto;
+  }
+  .brand { font-family: var(--mono); font-size: 10px; letter-spacing: .22em; color: var(--clay); }
+  .brand small { display: block; color: var(--text45); letter-spacing: .1em; margin-top: 4px; }
+  .rail h3 { font-family: var(--mono); font-size: 9px; letter-spacing: .18em; color: var(--text45);
+             text-transform: uppercase; margin: 26px 0 8px; font-weight: 500; }
+  .case-btn {
+    display: block; width: 100%; text-align: left; background: transparent; color: var(--text70);
+    border: 1px solid transparent; border-radius: 7px; padding: 9px 10px; margin-bottom: 4px;
+    font-family: var(--sans); font-size: 12.5px; cursor: pointer; line-height: 1.35;
+  }
+  .case-btn:hover { background: var(--raise); color: var(--text); }
+  .case-btn[aria-current="true"] { background: var(--raise); color: var(--text);
+    border-color: var(--border); box-shadow: inset 2px 0 0 var(--clay); }
+  .case-btn em { display: block; font-style: normal; font-family: var(--mono); font-size: 9.5px;
+    color: var(--text45); margin-top: 3px; }
+  .nav-link { display: block; padding: 5px 10px; color: var(--text45); text-decoration: none;
+    font-size: 12px; border-radius: 5px; }
+  .nav-link:hover { color: var(--text); background: var(--raise); }
+
+  main { flex: 1; min-width: 0; padding: 24px 28px 90px; max-width: 1180px; }
+  header.page { margin-bottom: 22px; }
+  header.page h1 { font-size: 25px; margin: 4px 0 6px; font-weight: 600; letter-spacing: -.01em; }
+  .eyebrow { font-family: var(--mono); font-size: 9.5px; letter-spacing: .2em; color: var(--clay);
+             text-transform: uppercase; }
+  .sub { color: var(--text45); font-size: 12.5px; }
+
+  section { margin-bottom: 26px; scroll-margin-top: 16px; }
+  section > h2 { font-family: var(--mono); font-size: 10px; letter-spacing: .2em; color: var(--text45);
+    text-transform: uppercase; margin: 0 0 12px; font-weight: 500; }
+  .card { background: var(--surface); border: 1px solid var(--border); border-radius: 11px; padding: 18px; }
+  .card + .card { margin-top: 12px; }
+  .grid2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 12px; }
+
+  .verdict { border-left: 3px solid var(--clay); }
+  .verdict.blocked { border-left-color: var(--straw); }
+  .verdict h3 { margin: 0 0 8px; font-size: 17px; font-weight: 600; line-height: 1.35; }
+  .verdict p { margin: 0 0 10px; color: var(--text70); font-size: 13.5px; line-height: 1.55; }
+  .score-row { display: flex; align-items: baseline; gap: 10px; margin-bottom: 14px; }
+  .score-big { font-family: var(--mono); font-size: 46px; line-height: 1; font-variant-numeric: tabular-nums; }
+  .reasons { margin: 0; padding-left: 18px; color: var(--text70); font-size: 13px; line-height: 1.65; }
+  .reasons li { margin-bottom: 4px; }
+
+  .bar { height: 6px; border-radius: 4px; background: var(--raise); overflow: hidden; }
+  .bar > i { display: block; height: 100%; border-radius: 4px; background: var(--clay); }
+  .meter { display: grid; grid-template-columns: 1fr 150px 58px; gap: 10px; align-items: center;
+    padding: 7px 0; border-bottom: 1px solid var(--border-soft); font-size: 12.5px; }
+  .meter:last-child { border-bottom: none; }
+  .meter .num { font-family: var(--mono); font-size: 11.5px; text-align: right;
+    font-variant-numeric: tabular-nums; color: var(--text70); }
+  .meter .remedy { grid-column: 1 / -1; font-size: 11.5px; color: var(--text45); line-height: 1.5;
+    padding-bottom: 4px; }
+
+  .chip { display: inline-block; font-family: var(--mono); font-size: 9px; letter-spacing: .1em;
+    text-transform: uppercase; padding: 2.5px 7px; border-radius: 4px; border: 1px solid var(--border);
+    color: var(--text45); white-space: nowrap; }
+  .chip.ok { color: var(--jade); border-color: rgba(111,165,124,.4); }
+  .chip.warn { color: var(--straw); border-color: rgba(216,166,87,.4); }
+  .chip.bad { color: var(--rose); border-color: rgba(199,48,76,.4); }
+
+  table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+  th { text-align: left; font-family: var(--mono); font-size: 9px; letter-spacing: .14em;
+    color: var(--text45); text-transform: uppercase; font-weight: 500; padding: 0 8px 8px 0;
+    border-bottom: 1px solid var(--border); }
+  td { padding: 9px 8px 9px 0; border-bottom: 1px solid var(--border-soft); vertical-align: top; }
+  tr.rejected td { color: var(--text45); }
+  tr.rejected .val { text-decoration: line-through; }
+  .val { font-family: var(--mono); font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .note { color: var(--text45); font-size: 11.5px; line-height: 1.5; margin-top: 4px; }
+  .expand { background: none; border: none; color: var(--clay); font-size: 11px; cursor: pointer;
+    padding: 2px 0; font-family: var(--sans); }
+
+  .stage { position: relative; background: #0F0B09; border: 1px solid var(--border);
+    border-radius: 9px; overflow: hidden; }
+  .stage svg { display: block; width: 100%; height: auto; }
+  .legend { display: flex; gap: 14px; flex-wrap: wrap; font-size: 11.5px; color: var(--text45);
+    margin-top: 8px; align-items: center; }
+  .legend i { display: inline-block; width: 14px; height: 2px; vertical-align: middle;
+    margin-right: 5px; border-radius: 2px; }
+
+  .timeline { margin-top: 12px; }
+  .phases { display: flex; height: 22px; border-radius: 5px; overflow: hidden;
+    border: 1px solid var(--border); }
+  .phases > div { display: flex; align-items: center; justify-content: center; overflow: hidden;
+    font-family: var(--mono); font-size: 8.5px; letter-spacing: .06em; color: var(--text70);
+    white-space: nowrap; border-right: 1px solid var(--bg); }
+  .phases > div:last-child { border-right: none; }
+  .controls { display: flex; gap: 6px; align-items: center; margin-top: 10px; flex-wrap: wrap; }
+  button.ctl { background: var(--raise); color: var(--text70); border: 1px solid var(--border);
+    border-radius: 6px; padding: 5px 10px; font-size: 11.5px; cursor: pointer; font-family: var(--sans); }
+  button.ctl:hover { color: var(--text); }
+  button.ctl[aria-pressed="true"] { border-color: var(--clay); color: var(--text); }
+  input[type=range] { flex: 1; min-width: 150px; accent-color: var(--clay); }
+  .frame-label { font-family: var(--mono); font-size: 11px; color: var(--text45);
+    font-variant-numeric: tabular-nums; min-width: 150px; }
+
+  .finding { border-left: 2px solid var(--clay); padding-left: 14px; margin-bottom: 18px; }
+  .finding:last-child { margin-bottom: 0; }
+  .finding dt { font-family: var(--mono); font-size: 9px; letter-spacing: .14em; color: var(--text45);
+    text-transform: uppercase; margin-top: 9px; }
+  .finding dd { margin: 3px 0 0; font-size: 13px; line-height: 1.55; color: var(--text70); }
+  .finding dd strong { color: var(--text); font-weight: 500; }
+  .finding-head { display: flex; justify-content: space-between; gap: 10px; align-items: baseline;
+    flex-wrap: wrap; }
+  .finding-head h4 { margin: 0; font-size: 14px; font-weight: 600; }
+  .decide { display: flex; gap: 6px; margin-top: 12px; align-items: center; flex-wrap: wrap; }
+  .decide textarea { flex: 1; min-width: 200px; background: var(--raise); color: var(--text);
+    border: 1px solid var(--border); border-radius: 6px; padding: 6px 8px; font-size: 12px;
+    font-family: var(--sans); resize: vertical; min-height: 32px; }
+
+  .pipeline-row { display: grid; grid-template-columns: 46px 1fr auto; gap: 10px; align-items: center;
+    padding: 8px 0; border-bottom: 1px solid var(--border-soft); font-size: 12.5px; }
+  .pipeline-row:last-child { border-bottom: none; }
+  .pipeline-row .id { font-family: var(--mono); font-size: 11px; color: var(--text45); }
+  .diagnostics { font-family: var(--mono); font-size: 10.5px; color: var(--text45); line-height: 1.7;
+    padding: 6px 0 10px 56px; }
+  .diagnostics span { margin-right: 14px; white-space: nowrap; }
+
+  .empty { color: var(--text45); font-size: 13px; }
+  .split { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  @media (max-width: 900px) {
+    body { flex-direction: column; }
+    .rail { width: 100%; height: auto; position: static; flex: none; }
+    .split { grid-template-columns: 1fr; }
+    main { padding: 18px 16px 60px; }
+  }
+</style>
+</head>
+<body>
+<nav class="rail">
+  <div class="brand">BASELINE VISION<small>Trainer-Dashboard</small></div>
+  <h3>Aufnahmen</h3>
+  <div id="cases"></div>
+  <h3>Abschnitte</h3>
+  <a class="nav-link" href="#urteil">Urteil</a>
+  <a class="nav-link" href="#qualitaet">Analysequalität</a>
+  <a class="nav-link" href="#video">Video &amp; Overlay</a>
+  <a class="nav-link" href="#raum">3D-Ansicht</a>
+  <a class="nav-link" href="#kennzahlen">Kennzahlen</a>
+  <a class="nav-link" href="#befunde">Befunde</a>
+  <a class="nav-link" href="#sitzung">Sitzung</a>
+  <a class="nav-link" href="#verlauf">Verlauf</a>
+  <a class="nav-link" href="#vergleich">Vergleich</a>
+  <a class="nav-link" href="#diagnose">Diagnose-Pipeline</a>
+</nav>
+
+<main>
+  <header class="page">
+    <div class="eyebrow" id="eyebrow"></div>
+    <h1 id="title"></h1>
+    <div class="sub" id="subtitle"></div>
+  </header>
+
+  <section id="urteil"><h2>Urteil</h2><div id="verdict"></div></section>
+  <section id="qualitaet"><h2>Analysequalität</h2><div id="quality"></div></section>
+  <section id="video"><h2>Video &amp; Overlay</h2><div id="player"></div></section>
+  <section id="raum"><h2>3D-Ansicht</h2><div id="threed"></div></section>
+  <section id="kennzahlen"><h2>Kennzahlen</h2><div id="metrics"></div></section>
+  <section id="befunde"><h2>Befunde</h2><div id="findings"></div></section>
+  <section id="sitzung"><h2>Sitzung</h2><div id="session"></div></section>
+  <section id="verlauf"><h2>Verlauf</h2><div id="history"></div></section>
+  <section id="vergleich"><h2>Vergleich</h2><div id="compare"></div></section>
+  <section id="diagnose"><h2>Diagnose-Pipeline</h2><div id="pipeline"></div></section>
+</main>
+
+<script>
+const DATA = /*__DEMO_DATA__*/null;
+__APP_JS__
+</script>
+</body>
+</html>
